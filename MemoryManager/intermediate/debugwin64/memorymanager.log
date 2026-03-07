@@ -1,8 +1,0 @@
-﻿  MemoryManager_pch.cpp
-  dllmain_debug.cpp
-  FastAllocator.cpp
-  MemoryManager_debug.cpp
-  MemTracker.cpp
-     Creating library ..\bin\x64\debug\MemoryManager.lib and object ..\bin\x64\debug\MemoryManager.exp
-  memorymanager.vcxproj -> C:\Users\admin\source\repos\max2w3d\bin\x64\debug\MemoryManager.dll
-          1 file(s) copied.
