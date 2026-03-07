@@ -42,7 +42,6 @@ class FastCriticalSectionClass
 
 	void Enter()
 	{
-		TT_ASSERT((size_t)&Flag % 4 == 0); // aligned to 4 bytes please
 		for (;;)
 		{
 			if (_interlockedbittestandset(&Flag, 0) == 0) return;

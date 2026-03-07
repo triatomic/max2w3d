@@ -1,4 +1,3 @@
-#include "general.h"
 #include <unordered_set>
 #include <iInstanceMgr.h>
 #include "Dialog/w3dmiscutilitiesdlg.h"
@@ -12,7 +11,9 @@
 #endif
 #include "w3dmaterial.h"
 #include "w3dmaxcommonhelpers.h"
-
+#include "filefactoryclass.h"
+#include "fileclass.h"
+#include "iniclass.h"
 
 namespace W3D::MaxTools
 {
@@ -93,6 +94,10 @@ namespace W3D::MaxTools
 			return TRUE;
 		case IDC_ASSIGN_EXTENSIONS:
 			DoExtensionNameAssignment();
+			m_Utilities.RefreshExportSettings();
+			return TRUE;
+		case IDC_RENAME_BONES:
+			RenameBones();
 			m_Utilities.RefreshExportSettings();
 			return TRUE;
 		}
@@ -300,6 +305,31 @@ namespace W3D::MaxTools
 				curNode->SetName(nodeText);
 				
 			}
+		}
+	}
+
+	void W3DMiscUtilitiesDlg::RenameBones()
+	{
+		FileClass* file = _TheFileFactory->Get_File("bonerename.ini");
+
+		if (file)
+		{
+			INIClass ini(*file);
+			INISection* section = ini.Find_Section("BoneRename");
+
+			for (INIEntry* it = section->EntryList.First(); it->Is_Valid(); it = it->Next())
+			{
+				WideStringClass name = it->Entry;
+				INode* node = GetCOREInterface()->GetINodeByName(name);
+
+				if (node)
+				{
+					WideStringClass newname = it->Value;
+					node->SetName(newname);
+				}
+			}
+
+			_TheFileFactory->Return_File(file);
 		}
 	}
 

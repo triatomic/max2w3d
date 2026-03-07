@@ -1,4 +1,3 @@
-#include "general.h"
 #include <max.h>
 #include <map>
 __pragma(push_macro("SAFE_DELETE")) __pragma(push_macro("SAFE_DELETE_ARRAY"))
@@ -452,7 +451,7 @@ class MaxTextureData;
 class LightData;
 class TexcoordData;
 class CD3DEffect10;
-class ID3D10InputLayout;
+struct ID3D10InputLayout;
 class MaxMappingData
 {
 public:
@@ -528,7 +527,7 @@ bool VersionMatch(wchar_t* szVersionFile)
 					VS_FIXEDFILEINFO* verInfo = (VS_FIXEDFILEINFO*)lpBuffer;
 					if (verInfo->dwSignature == 0xfeef04bd)
 					{
-						if (verInfo->dwFileVersionMS == 0x00190003 && verInfo->dwFileVersionLS == 0x00000e38)
+						if (verInfo->dwFileVersionMS == 0x00190003 && verInfo->dwFileVersionLS == 0x0003177c)
 						{
 							return true;
 						}

@@ -1,74 +1,69 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="dllmain_debug.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\MemoryManager\dllmain_debug.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="dllmain_release.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\MemoryManager\dllmain_release.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="FastAllocator.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\MemoryManager\FastAllocator.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="MemoryManager_debug.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\MemoryManager\MemoryManager_debug.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="MemoryManager_release.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\MemoryManager\MemoryManager_pch.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="MemTracker.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\MemoryManager\MemoryManager_release.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="general.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="..\MemoryManager\MemTracker.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="DList.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\DList.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
-    <ClInclude Include="FastAllocator.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\FastAllocator.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
-    <ClInclude Include="FastCriticalSection.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\FastCriticalSection.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
-    <ClInclude Include="MemoryManager.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\MemoryManager.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
-    <ClInclude Include="MemTracker.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\MemoryManager_pch.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
-    <ClInclude Include="platform.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\MemoryManager_x64.def" />
+    <ClInclude Include="..\MemoryManager\MemTracker.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
-    <ClInclude Include="TSList.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\platform.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
-    <ClInclude Include="general.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\MemoryManager\TSList.h">
+      <Filter>02. Headers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuildStep Include="MemoryManager_win32.def">
-      <Filter>Source Files</Filter>
-    </CustomBuildStep>
-    <CustomBuildStep Include="MemoryManager_x64.def">
-      <Filter>Source Files</Filter>
-    </CustomBuildStep>
+    <Natvis Include="..\shared\w3d_types.natvis">
+      <Filter>shared</Filter>
+    </Natvis>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="01. Sources">
+      <UniqueIdentifier>{7b1fa522-5cb6-6100-2f09-83a6f18e41f4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. Headers">
+      <UniqueIdentifier>{5d9751ee-1987-b147-ca0c-615c7df01f3f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shared">
+      <UniqueIdentifier>{b9e7819e-c763-6313-e2fb-3eefcfecfc0e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

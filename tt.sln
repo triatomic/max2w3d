@@ -1,0 +1,55 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MemoryManager", "memorymanager\memorymanager.vcxproj", "{682D536C-8E26-0F1F-66F5-6946CDFA02F3}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "w3dmaxtools", "w3dmaxtools\w3dmaxtools.vcxproj", "{04082066-5867-8757-8D45-F511E36F19AE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "w3xmaxtools", "w3xmaxtools\w3xmaxtools.vcxproj", "{D161C920-22FC-6085-05B6-E7AB6B650300}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wdump", "wdump\wdump.vcxproj", "{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		asan|x64 = asan|x64
+		debug|x64 = debug|x64
+		profile|x64 = profile|x64
+		release|x64 = release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.asan|x64.ActiveCfg = asan|x64
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.asan|x64.Build.0 = asan|x64
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.debug|x64.ActiveCfg = debug|x64
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.debug|x64.Build.0 = debug|x64
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.profile|x64.ActiveCfg = profile|x64
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.profile|x64.Build.0 = profile|x64
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.release|x64.ActiveCfg = release|x64
+		{682D536C-8E26-0F1F-66F5-6946CDFA02F3}.release|x64.Build.0 = release|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.asan|x64.ActiveCfg = asan|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.asan|x64.Build.0 = asan|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.debug|x64.ActiveCfg = debug|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.debug|x64.Build.0 = debug|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.profile|x64.ActiveCfg = profile|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.profile|x64.Build.0 = profile|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.release|x64.ActiveCfg = release|x64
+		{04082066-5867-8757-8D45-F511E36F19AE}.release|x64.Build.0 = release|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.asan|x64.ActiveCfg = asan|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.asan|x64.Build.0 = asan|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.debug|x64.ActiveCfg = debug|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.debug|x64.Build.0 = debug|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.profile|x64.ActiveCfg = profile|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.profile|x64.Build.0 = profile|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.release|x64.ActiveCfg = release|x64
+		{D161C920-22FC-6085-05B6-E7AB6B650300}.release|x64.Build.0 = release|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.asan|x64.ActiveCfg = asan|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.asan|x64.Build.0 = asan|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.debug|x64.ActiveCfg = debug|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.debug|x64.Build.0 = debug|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.profile|x64.ActiveCfg = profile|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.profile|x64.Build.0 = profile|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.release|x64.ActiveCfg = release|x64
+		{C9D22DCA-D4F1-B6AE-94ED-926F6569848C}.release|x64.Build.0 = release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

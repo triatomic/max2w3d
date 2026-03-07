@@ -1,4 +1,3 @@
-#include "general.h"
 #include "engine_string.h"
 
 #if (_MSVC_LANG >= 201703L)
@@ -134,7 +133,7 @@ int __cdecl StringClass::Format(_Printf_format_string_ const char* format,...)
 	va_list arg_list;
 	va_start(arg_list,format);
 	int len = vsnprintf(nullptr, 0, format, arg_list);
-	Uninitialised_Grow(len + 1);
+	Uninitialized_Grow(len + 1);
 	Store_Length(len);
 	vsnprintf(Peek_Buffer(), len+1, format, arg_list);
 	va_end(arg_list);
@@ -144,7 +143,7 @@ int __cdecl StringClass::Format(_Printf_format_string_ const char* format,...)
 int __cdecl StringClass::Format_Args(_Printf_format_string_ const char* format,const va_list& arg_list)
 {
 	int len = vsnprintf(nullptr, 0, format, arg_list);
-	Uninitialised_Grow(len + 1);
+	Uninitialized_Grow(len + 1);
 	Store_Length(len);
 	vsnprintf(Peek_Buffer(), len+1, format, arg_list);
 	return len;
@@ -159,32 +158,49 @@ void StringClass::Get_String(int length, bool is_temp)
 		BitScanForward((DWORD*)&index, FreeTempStrings); // Find the first free temp string
 		FreeTempStrings &= ~(1 << index); // Remove it from the free pool
 		char* buffer = TempStrings[index] + sizeof(_HEADER);
-		Set_Buffer_And_Allocated_Length(buffer, MAX_TEMP_LEN);
+		Set_Buffer_And_Length(buffer, MAX_TEMP_LEN);
 	}
-	else if (length > 0) Set_Buffer_And_Allocated_Length(Allocate_Buffer(length), length);
+	else if (length > 0)
+	{
+		length = TT_ALIGN_UP_TO_PO2(length, 16); // don't allocate something like a single byte
+		Allocate_And_Set_Buffer(length);
+	}
 	else Free_String();
 }
 
-void StringClass::Resize(int new_len)
+void StringClass::Resize(int new_alloc_len)
 {
-	if (new_len > Get_Allocated_Length())
+	int old_alloc_len = 0;
+	int str_len = 0;
+	if (m_Buffer != m_EmptyString)
 	{
-		char *x = Allocate_Buffer(new_len);
-		strcpy(x,m_Buffer);
-		Free_String();
-		Set_Buffer_And_Allocated_Length(x,new_len);
+		HEADER* header = Get_Header();
+		str_len = header->length;
+		old_alloc_len = header->allocated_length;
+	}
+	if (new_alloc_len > old_alloc_len)
+	{
+		if (str_len == 0 && m_Buffer != m_EmptyString)
+		{
+			str_len = (int)strlen(m_Buffer);
+		}
+		new_alloc_len = TT_ALIGN_UP_TO_PO2(new_alloc_len, 16); // don't allocate something like a single byte
+		char *x = Allocate_Buffer(new_alloc_len);
+		memcpy(x, m_Buffer, size_t(str_len) + 1);
+		Set_Buffer_And_Length(x, new_alloc_len, str_len);
 	}
 }
 
-void StringClass::Uninitialised_Grow(int new_len)
+void StringClass::Uninitialized_Grow(int new_len)
 {
 	if (new_len > Get_Allocated_Length())
 	{
-		char *x = Allocate_Buffer(new_len);
-		Free_String();
-		Set_Buffer_And_Allocated_Length(x,new_len);
+		new_len = TT_ALIGN_UP_TO_PO2(new_len, 16); // don't allocate something like a single byte
+		Allocate_And_Set_Buffer(new_len);
 	}
-	Store_Length(0);
+	else {
+		Store_Length(0);
+	}
 }
 
 void StringClass::Free_String()
@@ -254,7 +270,7 @@ int StringClass::Replace(const char* search, const char* replace, bool bCaseSens
   while (nullptr != searchPtr && (-1 == maxCount || nReplacements < maxCount) )
   {
     // Find the next instance of the search string
-    const char* foundPtr = ( bCaseSensitive ) ? stristr(searchPtr,search) : strstr(searchPtr,search);
+    const char* foundPtr = ( bCaseSensitive ) ? tt_stristr(searchPtr,search) : strstr(searchPtr,search);
     searchPtr = nullptr;
 
     if (nullptr != foundPtr )
@@ -329,7 +345,7 @@ int __cdecl WideStringClass::Format(_Printf_format_string_ const wchar_t* format
 	va_list arg_list;
 	va_start(arg_list,format);
 	int len = _vsnwprintf(nullptr, 0, format, arg_list);
-	Uninitialised_Grow(len + 1);
+	Uninitialized_Grow(len + 1);
 	Store_Length(len);
 	_vsnwprintf(Peek_Buffer(), len+1, format, arg_list);
 	va_end(arg_list);
@@ -342,7 +358,7 @@ int __cdecl WideStringClass::Format_Args(_Printf_format_string_ const wchar_t* f
 		return 0;
 
 	int len = _vsnwprintf(nullptr,0,format,arg_list);
-	Uninitialised_Grow(len + 1);
+	Uninitialized_Grow(len + 1);
 	Store_Length(len);
 	_vsnwprintf(Peek_Buffer(), len+1,format,arg_list);
 	return len;
@@ -357,32 +373,48 @@ void WideStringClass::Get_String(int length,bool is_temp)
 		BitScanForward((DWORD*)&index, FreeTempStrings); // Find the first free temp string
 		FreeTempStrings &= ~(1 << index); // Remove it from the free pool
 		wchar_t* buffer = (wchar_t*)(TempStrings[index] + sizeof(_HEADER));
-		Set_Buffer_And_Allocated_Length(buffer, MAX_TEMP_LEN);
+		Set_Buffer_And_Length(buffer, MAX_TEMP_LEN);
 	}
-	else if (length > 0) Set_Buffer_And_Allocated_Length(Allocate_Buffer(length), length);
+	else if (length > 0) {
+		length = TT_ALIGN_UP_TO_PO2(length, 16); // don't allocate something like a single byte
+		Allocate_And_Set_Buffer(length);
+	}
 	else Free_String();
 }
 
-void WideStringClass::Resize(int new_len)
+void WideStringClass::Resize(int new_alloc_len)
 {
-	if (new_len > Get_Allocated_Length())
+	int old_alloc_len = 0;
+	int str_len = 0;
+	if (m_Buffer != m_EmptyString)
 	{
-		wchar_t *x = Allocate_Buffer(new_len);
-		wcscpy(x,m_Buffer);
-		Free_String();
-		Set_Buffer_And_Allocated_Length(x,new_len);
+		HEADER* header = Get_Header();
+		str_len = header->length;
+		old_alloc_len = header->allocated_length;
+	}
+	if (new_alloc_len > old_alloc_len)
+	{
+		if (str_len == 0 && m_Buffer != m_EmptyString)
+		{
+			str_len = (int)wcslen(m_Buffer);
+		}
+		new_alloc_len = TT_ALIGN_UP_TO_PO2(new_alloc_len, 16); // don't allocate something like a single byte
+		wchar_t* x = Allocate_Buffer(new_alloc_len);
+		memcpy(x, m_Buffer, (size_t(str_len) + 1) * sizeof(wchar_t));
+		Set_Buffer_And_Length(x, new_alloc_len, str_len);
 	}
 }
 
-void WideStringClass::Uninitialised_Grow(int new_len)
+void WideStringClass::Uninitialized_Grow(int new_len)
 {
 	if (new_len > Get_Allocated_Length())
 	{
-		wchar_t *x = Allocate_Buffer(new_len);
-		Free_String();
-		Set_Buffer_And_Allocated_Length(x,new_len);
+		new_len = TT_ALIGN_UP_TO_PO2(new_len, 16); // don't allocate something like a single byte
+		Allocate_And_Set_Buffer(new_len);
 	}
-	Store_Length(0);
+	else {
+		Store_Length(0);
+	}
 }
 
 void WideStringClass::Free_String()
@@ -497,7 +529,7 @@ bool WideStringClass::Convert_From(const char *text)
 		int length = MultiByteToWideChar(CP_ACP, 0, text, -1, nullptr, 0);
 		if (length > 0)
 		{
-			Uninitialised_Grow(length);
+			Uninitialized_Grow(length);
 			Store_Length(length - 1);
 			MultiByteToWideChar(CP_ACP, 0, text, -1, m_Buffer, length);
 			return true;
@@ -526,7 +558,7 @@ WideStringClass WideStringClass::Substring(int start, int length) const
 	TT_ASSERT(start + length <= Get_Length());
 
 	WideStringClass result;
-	result.Uninitialised_Grow(length+1);
+	result.Uninitialized_Grow(length+1);
 	result.Store_Length(length);
 	memcpy(result.m_Buffer, m_Buffer + start, length * sizeof(wchar_t));
 	result.m_Buffer[length] = L'\0';
@@ -564,74 +596,3 @@ void WideStringClass::ReplaceSubstring(int start, int length, const WideStringCl
 	Store_Length(newLength);
 }
 #endif
-SCRIPTS_API char *newstr(const char *str)
-{
-	if (!str)
-	{
-		return nullptr;
-	}
-	size_t len = strlen(str)+1;
-	char *s = new char[len];
-	memcpy(s,str,len);
-	return s;	
-};
-SCRIPTS_API wchar_t *newwcs(const wchar_t *str)
-{
-	if (!str)
-		return nullptr;
-	size_t len = wcslen(str)+1;
-	wchar_t *s = new wchar_t[len];
-	memcpy(s,str,len*2);
-	return s;
-};
-SCRIPTS_API char *strtrim(char *v)
-{
-	if (v)
-	{
-		char *r = v;
-		while (*r > 0 && *r < 0x21)
-			r++;
-		strcpy(v,r);
-		r = v + strlen(v);
-		while (r > v && r[-1] > 0 && r[-1] < 0x21)
-			r--;
-		*r = 0;
-	}
-	return v;
-}
-
-SCRIPTS_API char *strrtrim(char *s) 
-{
-	char *t, *tt;
-
-	TT_ASSERT(s != nullptr);
-
-	for (tt = t = s; *t != '\0'; ++t)
-		if (!isspace(*(unsigned char *)t))
-			tt = t+1;
-	*tt = '\0';
-
-	return s;
-}
-
-SCRIPTS_API const char *stristr(const char *str, const char *substr){
-	size_t substr_len = strlen(substr);
-	while (*str){
-		if (_strnicmp(str, substr, substr_len) == 0)
-			return str;		
-		str++;
-	}
-	return nullptr;
-}
-
-SCRIPTS_API const wchar_t *wcsistr(const wchar_t *str, const wchar_t *substr){
-	if (!*str)
-		return nullptr;
-	size_t substr_len = wcslen(substr);
-	while (*str){
-		if (_wcsnicmp(str, substr, substr_len) == 0)
-			return str;
-		str++;
-	}
-	return nullptr;
-}

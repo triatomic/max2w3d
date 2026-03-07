@@ -1,4 +1,3 @@
-#include "General.h"
 #include "CriticalSectionClass.h"
 
 CriticalSectionClass::CriticalSectionClass()

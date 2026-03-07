@@ -110,6 +110,7 @@ namespace W3D::MaxTools
 			HWND             m_Stage0TextureEnabled;
 			ICustButton*     m_Stage0TextureMap;
 			ICustButton*     m_Stage0Publish;
+			ICustButton*     m_Stage0Resize;
 			ICustButton*     m_Stage0Display;
 			ICustButton*     m_Stage0ClampU;
 			ICustButton*     m_Stage0ClampV;
@@ -123,6 +124,7 @@ namespace W3D::MaxTools
 			HWND             m_Stage1TextureEnabled;
 			ICustButton*     m_Stage1TextureMap;
 			ICustButton*     m_Stage1Publish;
+			ICustButton*     m_Stage1Resize;
 			ICustButton*     m_Stage1Display;
 			ICustButton*     m_Stage1ClampU;
 			ICustButton*     m_Stage1ClampV;

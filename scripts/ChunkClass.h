@@ -5,8 +5,10 @@
 class FileClass;
 class StringClass;
 
+using ChunkID = unsigned long;
+
 struct ChunkHeader {
-	unsigned long ChunkType;
+	ChunkID ChunkType;
 	unsigned long ChunkSize;
 };
 
@@ -167,9 +169,8 @@ case id: { \
 	unsigned long size = cload.Cur_Micro_Chunk_Length(); \
 	if (size > 0) { \
 		int count = int(size / (unsigned long) sizeof(vector[0])); \
-		vector.Resize(count); \
+		vector.Uninitialized_Resize(count); \
 		cload.Read(vector.begin(), size); \
-		vector.Set_Active(count); \
 	} \
 } break;
 

@@ -1,4 +1,3 @@
-#include "general.h"
 #include "w3dappdatachunk.h"
 
 namespace W3D::MaxTools

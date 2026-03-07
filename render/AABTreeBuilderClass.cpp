@@ -1,4 +1,3 @@
-#include "General.h"
 #include <numeric>
 #include "AABTreeBuilderClass.h"
 #include "vector3i.h"
@@ -28,7 +27,7 @@ void AABTreeBuilderClass::Reset(void)
 
 void AABTreeBuilderClass::Build_AABTree()
 {
-	TT_PROFILER_SCOPE(__FUNCTION__)
+	TT_PROFILER_SCOPE;
 	std::vector<uint32> poly_indices(m_polys.size());
 	std::iota(poly_indices.begin(), poly_indices.end(), 0);
 

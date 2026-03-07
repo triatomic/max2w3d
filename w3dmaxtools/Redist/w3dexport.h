@@ -75,6 +75,7 @@ namespace W3D::MaxTools
 		int KeyReduction = 50;
 		float MaxAdaptiveDeltaError = 0.001f;
 #endif
+		bool MikkTSpace = false;
 	};
 
 	class W3DExport

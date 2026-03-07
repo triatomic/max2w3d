@@ -16,6 +16,7 @@ enum ChunkType {
 	W3D_CHUNK_MESH_USER_TEXT = 0x0000000C,        // Text from the MAX comment field (Null terminated string)
 	W3D_CHUNK_VERTEX_COLORS = 0x0000000D,        // @
 	W3D_CHUNK_VERTEX_INFLUENCES = 0x0000000E,        // Mesh Deformation vertex connections (array of W3dVertInfStruct's)
+	W3D_CHUNK_VERTEX_INFLUENCES_EXTENDED = 0x00000C03,
 
 	W3D_CHUNK_DAMAGE = 0x0000000F,        // @ This chunk is used extensively in Earth & Beyond
 	W3D_CHUNK_DAMAGE_HEADER,
@@ -145,6 +146,7 @@ enum ChunkType {
 	W3D_CHUNK_NEAR_ATTENUATION,                                         // optional near attenuation parameters
 	W3D_CHUNK_FAR_ATTENUATION,                                          // optional far attenuation parameters
 	W3D_CHUNK_SPOT_LIGHT_INFO_5_0,                                      // extra spot light parameters (new in 5.0)
+	W3D_CHUNK_PULSE,                                                    // pulse data
 
 	W3D_CHUNK_EMITTER = 0x00000500,        // description of a particle emitter
 	W3D_CHUNK_EMITTER_HEADER,                                           // general information such as name and version
@@ -174,6 +176,7 @@ enum ChunkType {
 	W3D_CHUNK_HLOD_SUB_OBJECT,                                      // an object in this level of detail array
 	W3D_CHUNK_HLOD_AGGREGATE_ARRAY,                                     // array of aggregates, contains W3D_CHUNK_SUB_OBJECT_ARRAY_HEADER and W3D_CHUNK_SUB_OBJECT_ARRAY
 	W3D_CHUNK_HLOD_PROXY_ARRAY,                                         // array of proxies, used for application-defined purposes, provides a name and a bone.
+	W3D_CHUNK_HLOD_LIGHT_ARRAY,                                         // array of lights, used for application-defined purposes, provides a name and a bone.
 
 	W3D_CHUNK_BOX = 0x00000740,        // defines an collision box render object (W3dBoxStruct)
 	W3D_CHUNK_SPHERE,

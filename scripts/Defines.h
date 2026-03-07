@@ -40,6 +40,7 @@ typedef uint32 uint;
 #pragma warning(disable: 6509) // warning c6509: Return used on precondition
 #pragma warning(disable: 4351) //warning C4351: new behavior: elements of array 'x' will be default initialized
 #pragma warning(disable: 4324) //warning C4324: structure was padded due to alignment specifier
+#pragma warning(disable: 5054) //warning C5054: operator 'operator-name': deprecated between enumerations of different types (these could be bugs, but it's used everywhere, including wxWidgets headers we don't control)
 
 //class needs to have dll-interface to used by clients of class. Except that it doesn't. 
 //If it did, the linker would complain.
@@ -351,5 +352,14 @@ DeferImpl<F> Defer_Func(F f) {
 #define DEFER_3(x)    DEFER_2(x, __COUNTER__)
 #define DEFER(code)   auto DEFER_3(_defer_) = Defer_Func([&](){code;})
 
+#define TT_ALIGN_UP_TO_PO2(value, po2) (((value) + ((po2) - 1)) & ~((po2) - 1))
+
+#if _MSVC_LANG >= 202002L
+#define TT_LIKELY [[likely]]
+#define TT_UNLIKELY [[unlikely]]
+#else
+#define TT_LIKELY
+#define TT_UNLIKELY
+#endif
 
 #endif

@@ -1,4 +1,3 @@
-#include "General.h"
 #include "SimpleFileFactoryClass.h"
 #include "BufferedFileClass.h"
 

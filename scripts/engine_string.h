@@ -3,6 +3,7 @@
 
 #include "HashTemplateKeyClass.h"
 #include "engine_string_view.h"
+#include "engine_string_utils.h"
 
 class StringClass {
 public:
@@ -20,8 +21,12 @@ public:
 	template<typename T, typename = std::enable_if_t<!std::is_same_v<T, bool>>>
 	StringClass(const char* string, T t) = delete;
 	~StringClass();
-	bool operator ==(const char* rvalue) const;
-	bool operator!= (const char* rvalue) const;
+	bool operator==(const char* rvalue) const;
+	bool operator!=(const char* rvalue) const;
+	bool operator==(const StringView& rvalue) const;
+	bool operator!=(const StringView& rvalue) const;
+	bool operator==(const StringClass& rvalue) const;
+	bool operator!=(const StringClass& rvalue) const;
 	const StringClass& operator=(const char* string);
 	const StringClass& operator=(const StringClass& string);
 	const StringClass& operator=(const StringView& string);
@@ -59,6 +64,30 @@ public:
 	// people migrate code from char* to StringClass all the time and forget to call !Is_Empty() instead of checking for nullptr
 	operator bool() const { return !Is_Empty(); }
 	operator StringView() const noexcept { return StringView(m_Buffer, size_t(Get_Length())); }
+
+	// STL interface compatibility so we can treat all string-ish types the same for generic algorithms
+	const char* begin() const { return m_Buffer; }
+	char* begin() { return m_Buffer; }
+	const char* data() const { return m_Buffer; }
+	char* data() { return m_Buffer; }
+	const char* end() const { return m_Buffer + Get_Length(); }
+	char* end() { return m_Buffer + Get_Length(); }
+	size_t length() const { return Get_Length(); }
+	size_t size() const { return Get_Length(); }
+	size_t capacity() const { size_t len = (size_t)Get_Allocated_Length(); return len == 0 ? 0 : len - 1; }
+	void resize(size_t len)
+	{
+		int old_len = Get_Length();
+		if (old_len == len)
+			return;
+		Resize((int)len + 1);
+		Store_Length((int)len);
+		if (len > old_len)
+			memset(m_Buffer + old_len + 1, '\0', len - old_len);
+		else
+			m_Buffer[len] = '\0';
+	}
+	using value_type = char;
 
 	int	Compare (const char *string) const;
 	int Compare_No_Case (const char *string) const;
@@ -109,7 +138,7 @@ public:
 		StringClass dest;
 		if (nCount != 0)
 		{
-			dest.Uninitialised_Grow(nCount+1);
+			dest.Uninitialized_Grow(nCount+1);
 			dest[nCount] = 0;
 			memcpy(dest.m_Buffer, m_Buffer, nCount);
 		}
@@ -129,7 +158,7 @@ public:
 		StringClass dest;
 		if (nCount != 0)
 		{
-			dest.Uninitialised_Grow(nCount + 1);
+			dest.Uninitialized_Grow(nCount + 1);
 			dest[nCount] = 0;
 			memcpy(dest.m_Buffer, m_Buffer + (Get_Header()->length - nCount), nCount);
 		}
@@ -223,7 +252,7 @@ public:
 
 	bool StartsWithI(const char* string) const
 	{
-		return _strnicmp(m_Buffer, string, strlen(string)) == 0;
+		return tt_strnicmp(m_Buffer, string, strlen(string)) == 0;
 	}
 
 	uint GetHash() const
@@ -252,12 +281,12 @@ public:
 
 	void ToUpper()
 	{
-		_strupr(m_Buffer);
+		tt_strupr(*this);
 	}
 
 	void ToLower()
 	{
-		_strlwr(m_Buffer);
+		tt_strlwr(*this);
 	}
 
 	StringClass AsUpper() const
@@ -302,14 +331,15 @@ private:
 	SHARED_API void Get_String(int length,bool is_temp);
 	char* Allocate_Buffer(int len);
 	SHARED_API void Resize(int new_len);
-	SHARED_API void Uninitialised_Grow(int new_len);
+	SHARED_API void Uninitialized_Grow(int new_len);
 	SHARED_API int Get_Temp_String_Index();
 	bool Is_Temp_String();
 	void Store_Length(int length);
 	void Store_Allocated_Length(int length);
 	HEADER *Get_Header() const;
 	int Get_Allocated_Length() const;
-	void Set_Buffer_And_Allocated_Length(char *buffer, int length);
+	void Set_Buffer_And_Length(char *buffer, int allocated_length, int string_length = 0);
+	void Allocate_And_Set_Buffer(int new_alloc_length);
 	char* m_Buffer;
 #if (SHARED_EXPORTS) || (EXTERNAL)
 	static char __declspec(thread) TempStrings[MAX_TEMP_STRING][MAX_TEMP_BYTES];
@@ -317,6 +347,7 @@ private:
 #endif
 	SHARED_API static char * m_EmptyString;
 	SHARED_API static char m_NullChar;
+	friend class BitStreamClass;
 };
 
 inline const StringClass &StringClass::operator= (const StringClass &string)
@@ -324,7 +355,7 @@ inline const StringClass &StringClass::operator= (const StringClass &string)
 	if (!(string.Is_Empty() && Is_Empty()))// don't bother allocating if we are assigning an empty/uninitialized string to an empty/uninitialized string
 	{
 		int len = string.Get_Length();
-		Uninitialised_Grow(len + 1);
+		Uninitialized_Grow(len + 1);
 		Store_Length(len);
 		memmove(m_Buffer, string.m_Buffer, (len + 1) * sizeof(char));
 	}
@@ -336,7 +367,7 @@ inline const StringClass &StringClass::operator= (const StringView &string)
 	if (!(string.empty() && Is_Empty()))// don't bother allocating if we are assigning an empty/uninitialized string to an empty/uninitialized string
 	{
 		int len = int(string.length());
-		Uninitialised_Grow(len + 1);
+		Uninitialized_Grow(len + 1);
 		Store_Length(len);
 		memmove(m_Buffer, string.data(), len * sizeof(char));
 		m_Buffer[len] = '\0'; // string views aren't guaranteed to be null terminated
@@ -372,7 +403,7 @@ inline const StringClass &StringClass::operator= (const char *string)
 	if (string && !(string[0] == '\0' && Is_Empty())) // don't bother allocating if we are assigning an empty string to an empty/uninitialized string
 	{
 		int len = (int)strlen(string);
-		Uninitialised_Grow(len + 1);
+		Uninitialized_Grow(len + 1);
 		Store_Length(len);
 		memmove(m_Buffer, string, (len + 1) * sizeof(char)); // memmove because string could be pointing into our own buffer
 	}
@@ -390,7 +421,7 @@ inline const StringClass &StringClass::operator= (const wchar_t *string)
 
 inline const StringClass &StringClass::operator= (char ch)
 {
-	Uninitialised_Grow (2);
+	Uninitialized_Grow (2);
 	m_Buffer[0] = ch;
 	m_Buffer[1] = m_NullChar;
 	Store_Length (1);
@@ -486,7 +517,7 @@ inline int StringClass::Compare (const char *string) const
 
 inline int StringClass::Compare_No_Case (const char *string) const
 {
-	return _stricmp (m_Buffer, string);
+	return tt_stricmp (m_Buffer, string);
 }
 
 inline const char &StringClass::operator[] (int index) const
@@ -522,6 +553,26 @@ inline bool StringClass::operator== (const char *rvalue) const
 inline bool StringClass::operator!= (const char *rvalue) const
 {
 	return (Compare (rvalue) != 0);
+}
+
+inline bool StringClass::operator== (const StringView& rvalue) const
+{
+	return tt_strcmp_equal(*this, rvalue);
+}
+
+inline bool StringClass::operator!= (const StringView& rvalue) const
+{
+	return !tt_strcmp_equal(*this, rvalue);
+}
+
+inline bool StringClass::operator== (const StringClass& rvalue) const
+{
+	return tt_strcmp_equal(*this, rvalue);
+}
+
+inline bool StringClass::operator!= (const StringClass& rvalue) const
+{
+	return !tt_strcmp_equal(*this, rvalue);
 }
 
 inline bool StringClass::operator < (const char *string) const
@@ -604,7 +655,7 @@ constexpr size_t Get_Integer_Print_String_Buf_Size(size_t size)
 
 inline char *StringClass::Get_Buffer (int new_length)
 {
-	Uninitialised_Grow (new_length);
+	Uninitialized_Grow (new_length);
 	return m_Buffer;
 }
 
@@ -680,7 +731,7 @@ inline int StringClass::Get_Length (void) const
 	return length;
 }
 
-inline void StringClass::Set_Buffer_And_Allocated_Length (char *buffer, int length)
+inline void StringClass::Set_Buffer_And_Length(char *buffer, int allocated_length, int string_length)
 {
 	if (m_Buffer != m_EmptyString)
 		Free_String ();
@@ -688,9 +739,19 @@ inline void StringClass::Set_Buffer_And_Allocated_Length (char *buffer, int leng
 	m_Buffer = buffer;
 	if (m_Buffer != m_EmptyString)
 	{
-		Store_Allocated_Length (length);
-		Store_Length (0);		
+		HEADER* header = Get_Header();
+		header->allocated_length = allocated_length;
+		header->length = string_length;
 	}
+}
+
+inline void StringClass::Allocate_And_Set_Buffer(int new_alloc_length)
+{
+	char* buffer = Allocate_Buffer(new_alloc_length);
+	if (m_Buffer != m_EmptyString)
+		Free_String();
+
+	m_Buffer = buffer;
 }
 
 inline char *StringClass::Allocate_Buffer (int length)
@@ -742,6 +803,10 @@ public:
 	~WideStringClass (void);
 	bool operator== (const wchar_t *rvalue) const;
 	bool operator!= (const wchar_t *rvalue) const;
+	bool operator== (const WideStringClass& rvalue) const;
+	bool operator!= (const WideStringClass& rvalue) const;
+	bool operator== (const WideStringView& rvalue) const;
+	bool operator!= (const WideStringView& rvalue) const;
 	const WideStringClass &operator= (const WideStringClass &string);
 	const WideStringClass &operator= (const WideStringView &string);
 	const WideStringClass &operator= (WideStringClass &&string) noexcept;
@@ -779,6 +844,30 @@ public:
 	// people migrate code from wchar_t* to WideStringClass all the time and forget to call !Is_Empty() instead of checking for nullptr
 	operator bool() const { return !Is_Empty(); }
 	operator WideStringView() const noexcept { return WideStringView(m_Buffer, size_t(Get_Length())); }
+
+	// STL interface compatibility so we can treat all string-ish types the same for generic algorithms
+	const wchar_t* begin() const { return m_Buffer; }
+	wchar_t* begin() { return m_Buffer; }
+	const wchar_t* data() const { return m_Buffer; }
+	wchar_t* data() { return m_Buffer; }
+	const wchar_t* end() const { return m_Buffer + Get_Length(); }
+	wchar_t* end() { return m_Buffer + Get_Length(); }
+	size_t length() const { return Get_Length(); }
+	size_t size() const { return Get_Length(); }
+	size_t capacity() const { size_t len = (size_t)Get_Allocated_Length(); return len == 0 ? 0 : len - 1; }
+	void resize(size_t len)
+	{
+		int old_len = Get_Length();
+		if (old_len == len)
+			return;
+		Resize((int)len + 1);
+		Store_Length((int)len);
+		if (len > old_len)
+			wmemset(m_Buffer + old_len + 1, L'\0', len - old_len);
+		else
+			m_Buffer[len] = L'\0';
+	}
+	using value_type = wchar_t;
 
 	int Compare (const wchar_t *string) const;
 	int Compare_No_Case (const wchar_t *string) const;
@@ -898,14 +987,15 @@ private:
 	SHARED_API void Get_String(int length,bool is_temp);
 	wchar_t *		Allocate_Buffer (int length);
 	SHARED_API void			Resize (int size);
-	SHARED_API void			Uninitialised_Grow (int length);
+	SHARED_API void			Uninitialized_Grow (int length);
 	SHARED_API int Get_Temp_String_Index();
 	bool Is_Temp_String();
 	void Store_Length(int length);
 	void Store_Allocated_Length(int length);
 	HEADER *Get_Header() const;
 	int Get_Allocated_Length() const;
-	void Set_Buffer_And_Allocated_Length(wchar_t *buffer, int length);
+	void Set_Buffer_And_Length(wchar_t* buffer, int allocated_length, int string_length = 0);
+	void Allocate_And_Set_Buffer(int new_alloc_length);
 	wchar_t* m_Buffer;
 #if (SHARED_EXPORTS) || (EXTERNAL)
 	static char __declspec(thread) TempStrings[MAX_TEMP_STRING][MAX_TEMP_BYTES];
@@ -913,6 +1003,7 @@ private:
 #endif
 	SHARED_API static wchar_t * m_EmptyString;
 	SHARED_API static wchar_t m_NullChar;
+	friend class BitStreamClass;
 };
 
 inline WideStringClass::WideStringClass (int initial_len, bool hint_temporary) : m_Buffer (m_EmptyString)
@@ -1040,12 +1131,33 @@ inline bool WideStringClass::operator!= (const wchar_t *rvalue) const
 	return (Compare (rvalue) != 0);
 }
 
+inline bool WideStringClass::operator== (const WideStringView& rvalue) const
+{
+	return tt_wcscmp_equal(*this, rvalue);
+}
+
+inline bool WideStringClass::operator!= (const WideStringView& rvalue) const
+{
+	return !tt_wcscmp_equal(*this, rvalue);
+}
+
+inline bool WideStringClass::operator== (const WideStringClass& rvalue) const
+{
+	return tt_wcscmp_equal(*this, rvalue);
+}
+
+inline bool WideStringClass::operator!= (const WideStringClass& rvalue) const
+{
+	return !tt_wcscmp_equal(*this, rvalue);
+}
+
+
 inline const WideStringClass & WideStringClass::operator= (const WideStringClass &string)
 {	
 	if (!(string.Is_Empty() && Is_Empty())) // don't bother allocating if we are assigning an empty/uninitialized string to an empty/uninitialized string
 	{
 		int len = string.Get_Length();
-		Uninitialised_Grow(len + 1);
+		Uninitialized_Grow(len + 1);
 		Store_Length(len);
 		memmove(m_Buffer, string.m_Buffer, (len + 1) * sizeof(wchar_t));
 	}
@@ -1057,7 +1169,7 @@ inline const WideStringClass & WideStringClass::operator= (const WideStringView 
 	if (!(string.empty() && Is_Empty())) // don't bother allocating if we are assigning an empty/uninitialized string to an empty/uninitialized string
 	{
 		int len = int(string.length());
-		Uninitialised_Grow(len + 1);
+		Uninitialized_Grow(len + 1);
 		Store_Length(len);
 		memmove(m_Buffer, string.data(), len * sizeof(wchar_t));
 		m_Buffer[len] = L'\0'; // string views aren't guaranteed to be null terminated
@@ -1146,7 +1258,7 @@ inline const WideStringClass & WideStringClass::operator= (const wchar_t *string
 	if (string && !(string[0] == L'\0' && Is_Empty())) // don't bother allocating if we are assigning an empty string to an empty/uninitialized string
 	{
 		int len = (int)wcslen(string);
-		Uninitialised_Grow(len + 1);
+		Uninitialized_Grow(len + 1);
 		Store_Length(len);
 		memmove(m_Buffer, string, (len + 1) * sizeof(wchar_t));
 	}
@@ -1161,7 +1273,7 @@ inline const WideStringClass &WideStringClass::operator= (const char *string)
 
 inline const WideStringClass &WideStringClass::operator= (wchar_t ch)
 {
-	Uninitialised_Grow (2);
+	Uninitialized_Grow (2);
 	m_Buffer[0] = ch;
 	m_Buffer[1] = m_NullChar;
 	Store_Length (1);
@@ -1265,7 +1377,7 @@ inline const WideStringClass& WideStringClass::operator+= (double f)
 
 inline wchar_t *WideStringClass::Get_Buffer (int new_length)
 {
-	Uninitialised_Grow (new_length);
+	Uninitialized_Grow (new_length);
 	return m_Buffer;
 }
 
@@ -1341,7 +1453,7 @@ inline int WideStringClass::Get_Length (void) const
 	return length;
 }
 
-inline void WideStringClass::Set_Buffer_And_Allocated_Length (wchar_t *buffer, int length)
+inline void WideStringClass::Set_Buffer_And_Length (wchar_t *buffer, int allocated_length, int string_length)
 {
 	if (m_Buffer != m_EmptyString)
 		Free_String ();
@@ -1349,9 +1461,19 @@ inline void WideStringClass::Set_Buffer_And_Allocated_Length (wchar_t *buffer, i
 	m_Buffer = buffer;
 	if (m_Buffer != m_EmptyString)
 	{
-		Store_Allocated_Length (length);
-		Store_Length (0);		
+		HEADER* header = Get_Header();
+		header->allocated_length = allocated_length;
+		header->length = string_length;
 	}
+}
+
+inline void WideStringClass::Allocate_And_Set_Buffer(int new_alloc_length)
+{
+	wchar_t* buffer = Allocate_Buffer(new_alloc_length);
+	if (m_Buffer != m_EmptyString)
+		Free_String();
+
+	m_Buffer = buffer;
 }
 
 inline wchar_t * WideStringClass::Allocate_Buffer (int length)
@@ -1415,6 +1537,13 @@ struct hash_istring
     {
         return IStringHashFunc(str);
     }
+
+	// this should catch other string types like std::string or std::string_view without having to explicitly name the type here
+	template<IsStringyType T>
+	size_t operator()(const T& str) const noexcept
+	{
+		return IStringHashFunc(StringView(str.data(), str.length()));
+	}
 };
 
 struct hash_iwstring
@@ -1436,6 +1565,13 @@ struct hash_iwstring
 	{
 		return IStringHashFunc(str);
 	}
+
+	// this should catch other string types like std::wstring or std::wstring_view without having to explicitly name the type here
+	template<IsWideStringyType T>
+	size_t operator()(const T& str) const noexcept
+	{
+		return IStringHashFunc(WideStringView(str.data(), str.length()));
+	}
 };
 
 struct equals_istring
@@ -1443,51 +1579,22 @@ struct equals_istring
 	// NOTE(Mara): this is for "heterogeneous lookup", e.g. looking up in a map with key StringClass using a char* without allocating
 	using is_transparent = void;
 
-	// NOTE(Mara): StringView isn't guaranteed to be null terminated
-
-	bool operator()(const char* a, const char* b) const noexcept
+	template<typename T, typename U>
+	bool operator()(const T& a, const U& b) const noexcept
 	{
-		return _stricmp(a, b) == 0;
+		return tt_stricmp_equal(a, b);
 	}
 
-	bool operator()(const StringClass& a, const StringClass& b) const noexcept
+	// NOTE: string views may not be null terminated, so we need to check equality until length and then make sure the following character in the terminated string is null
+	template<IsStringViewType T>
+	bool operator()(const T& a, const char* b) const noexcept
 	{
-		return _stricmp(a.Peek_Buffer(), b.Peek_Buffer()) == 0;
+		return (tt_strnicmp(a.data(), b, a.length()) == 0) && (b[a.length()] == '\0');
 	}
-
-	bool operator()(const StringView& a, const StringView& b) const noexcept
+	template<IsStringViewType T>
+	bool operator()(const char* a, const T& b) const noexcept
 	{
-		return (a.length() == b.length()) && (_strnicmp(a.data(), b.data(), a.length()) == 0);
-	}
-
-	bool operator()(const StringClass& a, const StringView& b) const noexcept
-	{
-		return (_strnicmp(a.Peek_Buffer(), b.data(), b.length()) == 0) && (a[b.length()] == '\0');
-	}
-	
-	bool operator()(const StringView& a, const StringClass& b) const noexcept
-	{
-		return (_strnicmp(b.Peek_Buffer(), a.data(), a.length()) == 0) && (b[a.length()] == '\0');
-	}
-
-	bool operator()(const StringClass& a, const char* b) const noexcept
-	{
-		return _stricmp(a.Peek_Buffer(), b) == 0;
-	}
-
-	bool operator()(const StringView& a, const char* b) const noexcept
-	{
-		return (_strnicmp(a.data(), b, a.length()) == 0) && (b[a.length()] == '\0');
-	}
-
-	bool operator()(const char* a, const StringClass& b) const noexcept
-	{
-		return _stricmp(a, b.Peek_Buffer()) == 0;
-	}
-
-	bool operator()(const char* a, const StringView& b) const noexcept
-	{
-		return (_strnicmp(a, b.data(), b.length()) == 0) && (a[b.length()] == '\0');
+		return (tt_strnicmp(a, b.data(), b.length()) == 0) && (a[b.length()] == '\0');
 	}
 };
 
@@ -1497,51 +1604,22 @@ struct equals_iwstring
 	// NOTE(Mara): this is for "heterogeneous lookup", e.g. looking up in a map with key StringClass using a char* without allocating
 	using is_transparent = void;
 
-	// NOTE(Mara): WideStringView isn't guaranteed to be null terminated
-
-	bool operator()(const wchar_t* a, const wchar_t* b) const noexcept
+	template<typename T, typename U>
+	bool operator()(const T& a, const U& b) const noexcept
 	{
-		return _wcsicmp(a, b) == 0;
+		return tt_wcsicmp_equal(a, b);
 	}
 
-	bool operator()(const WideStringClass& a, const WideStringClass& b) const noexcept
+	// NOTE: string views may not be null terminated, so we need to check equality until length and then make sure the following character in the terminated string is null
+	template<IsWideStringViewType T>
+	bool operator()(const T& a, const wchar_t* b) const noexcept
 	{
-		return _wcsicmp(a.Peek_Buffer(), b.Peek_Buffer()) == 0;
+		return (_wcsnicmp(a.data(), b, a.length()) == 0) && (b[a.length()] == L'\0');
 	}
-
-	bool operator()(const WideStringView& a, const WideStringView& b) const noexcept
+	template<IsWideStringViewType T>
+	bool operator()(const wchar_t* a, T& b) const noexcept
 	{
-		return (a.length() == b.length()) && (_wcsnicmp(a.data(), b.data(), a.length()) == 0);
-	}
-
-	bool operator()(const WideStringClass& a, const WideStringView& b) const noexcept
-	{
-		return (_wcsnicmp(a.Peek_Buffer(), b.data(), b.length()) == 0) && (a[b.length()] == '\0');
-	}
-
-	bool operator()(const WideStringView& a, const WideStringClass& b) const noexcept
-	{
-		return (_wcsnicmp(b.Peek_Buffer(), a.data(), a.length()) == 0) && (b[a.length()] == '\0');
-	}
-
-	bool operator()(const WideStringClass& a, const wchar_t* b) const noexcept
-	{
-		return _wcsicmp(a.Peek_Buffer(), b) == 0;
-	}
-
-	bool operator()(const WideStringView& a, const wchar_t* b) const noexcept
-	{
-		return (_wcsnicmp(a.data(), b, a.length()) == 0) && (b[a.length()] == '\0');
-	}
-
-	bool operator()(const wchar_t* a, const WideStringClass& b) const noexcept
-	{
-		return _wcsicmp(a, b.Peek_Buffer()) == 0;
-	}
-
-	bool operator()(const wchar_t* a, const WideStringView& b) const noexcept
-	{
-		return (_wcsnicmp(a, b.data(), b.length()) == 0) && (a[b.length()] == '\0');
+		return (_wcsnicmp(a, b.data(), b.length()) == 0) && (a[b.length()] == L'\0');
 	}
 };
 
@@ -1564,6 +1642,13 @@ struct hash_string
     {
         return StringHashFunc(str);
     }
+
+	// this should catch other string types like std::string or std::string_view without having to explicitly name the type here
+	template<IsStringyType T>
+	size_t operator()(const T& str) const noexcept
+	{
+		return StringHashFunc(StringView(str.data(), str.length()));
+	}
 };
 
 struct hash_wstring
@@ -1585,6 +1670,13 @@ struct hash_wstring
 	{
 		return StringHashFunc(str);
 	}
+
+	// this should catch other string types like std::wstring or std::wstring_view without having to explicitly name the type here
+	template<IsWideStringyType T>
+	size_t operator()(const T& str) const noexcept
+	{
+		return StringHashFunc(WideStringView(str.data(), str.length()));
+	}
 };
 
 struct equals_string
@@ -1592,48 +1684,17 @@ struct equals_string
 	// NOTE(Mara): this is for "heterogeneous lookup", e.g. looking up in a map with key StringClass using a char* without allocating
 	using is_transparent = void;
 
-	// NOTE(Mara): StringView isn't guaranteed to be null terminated
-
-	bool operator()(const char* a, const char* b) const noexcept
+	template<typename T, typename U>
+	bool operator()(const T& a, const U& b) const noexcept
 	{
-		return strcmp(a, b) == 0;
+		return tt_strcmp_equal(a, b);
 	}
 
-	bool operator()(const StringClass& a, const StringClass& b) const noexcept
-	{
-		return strcmp(a.Peek_Buffer(), b.Peek_Buffer()) == 0;
-	}
-
-	bool operator()(const StringView& a, const StringView& b) const noexcept
-	{
-		return (a == b);
-	}
-
-	bool operator()(const StringClass& a, const StringView& b) const noexcept
-	{
-		return (strncmp(a.Peek_Buffer(), b.data(), b.length()) == 0) && (a[b.length()] == '\0');
-	}
-
-	bool operator()(const StringView& a, const StringClass& b) const noexcept
-	{
-		return (strncmp(b.Peek_Buffer(), a.data(), a.length()) == 0) && (b[a.length()] == '\0');
-	}
-
-	bool operator()(const StringClass& a, const char* b) const noexcept
-	{
-		return strcmp(a.Peek_Buffer(), b) == 0;
-	}
-
+	// NOTE: string views may not be null terminated, so we need to check equality until length and then make sure the following character in the terminated string is null
 	bool operator()(const StringView& a, const char* b) const noexcept
 	{
 		return (strncmp(a.data(), b, a.length()) == 0) && (b[a.length()] == '\0');
 	}
-
-	bool operator()(const char* a, const StringClass& b) const noexcept
-	{
-		return strcmp(a, b.Peek_Buffer()) == 0;
-	}
-
 	bool operator()(const char* a, const StringView& b) const noexcept
 	{
 		return (strncmp(a, b.data(), b.length()) == 0) && (a[b.length()] == '\0');
@@ -1645,51 +1706,20 @@ struct equals_wstring
 	// NOTE(Mara): this is for "heterogeneous lookup", e.g. looking up in a map with key StringClass using a char* without allocating
 	using is_transparent = void;
 
-	// NOTE(Mara): WideStringView isn't guaranteed to be null terminated
-
-	bool operator()(const wchar_t* a, const wchar_t* b) const noexcept
+	template<typename T, typename U>
+	bool operator()(const T& a, const U& b) const noexcept
 	{
-		return wcscmp(a, b) == 0;
+		return tt_wcscmp_equal(a, b);
 	}
 
-	bool operator()(const WideStringClass& a, const WideStringClass& b) const noexcept
-	{
-		return wcscmp(a.Peek_Buffer(), b.Peek_Buffer()) == 0;
-	}
-
-	bool operator()(const WideStringView& a, const WideStringView& b) const noexcept
-	{
-		return (a == b);
-	}
-
-	bool operator()(const WideStringClass& a, const WideStringView& b) const noexcept
-	{
-		return (wcsncmp(a.Peek_Buffer(), b.data(), b.length()) == 0) && (a[b.length()] == '\0');
-	}
-
-	bool operator()(const WideStringView& a, const WideStringClass& b) const noexcept
-	{
-		return (wcsncmp(b.Peek_Buffer(), a.data(), a.length()) == 0) && (b[a.length()] == '\0');
-	}
-
-	bool operator()(const WideStringClass& a, const wchar_t* b) const noexcept
-	{
-		return wcscmp(a.Peek_Buffer(), b) == 0;
-	}
-
+	// NOTE: string views may not be null terminated, so we need to check equality until length and then make sure the following character in the terminated string is null
 	bool operator()(const WideStringView& a, const wchar_t* b) const noexcept
 	{
-		return (wcsncmp(a.data(), b, a.length()) == 0) && (b[a.length()] == '\0');
+		return (wcsncmp(a.data(), b, a.length()) == 0) && (b[a.length()] == L'\0');
 	}
-
-	bool operator()(const wchar_t* a, const WideStringClass& b) const noexcept
-	{
-		return wcscmp(a, b.Peek_Buffer()) == 0;
-	}
-
 	bool operator()(const wchar_t* a, const WideStringView& b) const noexcept
 	{
-		return (wcsncmp(a, b.data(), b.length()) == 0) && (a[b.length()] == '\0');
+		return (wcsncmp(a, b.data(), b.length()) == 0) && (a[b.length()] == L'\0');
 	}
 };
 
@@ -1720,10 +1750,4 @@ struct string_reverse_explorer_sort
 	}
 };
 
-SCRIPTS_API char *newstr(const char *str); //duplicate a character string
-SCRIPTS_API wchar_t *newwcs(const wchar_t *str);  //duplicate a wide character string
-SCRIPTS_API char *strtrim(char *); //trim a string
-SCRIPTS_API char* strrtrim(char *); //trim trailing whitespace from a string
-SCRIPTS_API const char *stristr(const char *str, const char *substr); //like strstr but case insenstive
-SCRIPTS_API const wchar_t *wcsistr(const wchar_t *str, const wchar_t *substr); //like strstr but case insenstive and for wchar_t
 #endif

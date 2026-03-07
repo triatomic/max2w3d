@@ -1,4 +1,3 @@
-#include "general.h"
 #include "w3dmaxcommonhelpers.h"
 
 namespace W3D::MaxTools

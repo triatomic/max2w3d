@@ -120,6 +120,7 @@
 #define IDS_SURFACE_TYPE_EXTRA_6        195
 #define IDS_SURFACE_TYPE_EXTRA_7        196
 #define IDS_SURFACE_TYPE_EXTRA_8        197
+#define IDS_RESIZE                      198
 #define IDC_SURFACE_TYPE                1007
 #define IDC_STATIC_SORT_ON              1008
 #define IDC_STATIC_SORT_LVL_SPIN        1010
@@ -196,8 +197,10 @@
 #define IDC_TWO_SIDED                   1077
 #define IDC_BLEND_ALPHA_TEST            1078
 #define IDC_HIDE                        1078
+#define IDC_STAGE_0_RESIZE              1078
 #define IDC_BLEND_MODE                  1079
 #define IDC_Z_NORMAL                    1079
+#define IDC_STAGE_1_RESIZE              1079
 #define IDC_KEEP_NORMAL                 1080
 #define IDC_VALPHA                      1081
 #define IDC_SHADOW                      1082
@@ -217,6 +220,7 @@
 #define IDC_SELECT_PHYS                 1103
 #define IDC_SELECT_PROJ                 1104
 #define IDC_SELECT_VIS                  1105
+#define IDC_RENAME_BONES                1106
 #define IDC_ROOT_NAME                   1107
 #define IDC_ASSIGN_NAMES                1108
 #define IDC_MAXROTATION                 1108
@@ -256,6 +260,7 @@
 #define IDC_ADAPTIVEDELTA               1157
 #define IDC_MAXERROR                    1158
 #define IDC_DEFAULTSETTINGS             1159
+#define IDC_MIKKTSPACE                  1160
 #define IDC_LOG                         1198
 
 // Next default values for new objects
@@ -264,7 +269,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        171
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1160
+#define _APS_NEXT_CONTROL_VALUE         1161
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -100,6 +100,12 @@ void operator delete[](void* memory, std::align_val_t align);
 void operator delete[](void* memory, size_t size);
 void operator delete[](void* memory, size_t size, std::align_val_t align);
 
+// we need to overload the nothrow versions too because MSVC refuses to call the right versions
+[[nodiscard]] void* operator new  (std::size_t size, const std::nothrow_t&) noexcept;
+[[nodiscard]] void* operator new[](std::size_t size, const std::nothrow_t&) noexcept;
+[[nodiscard]] void* operator new  (std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept;
+[[nodiscard]] void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept;
+
 #ifdef DECLARE_PLACEMENT_NEW
 // TODO:
 // - according to https://en.cppreference.com/w/cpp/memory/new/operator_new you can't replace these new functions, especially not declared as inline. Maybe MSVC-specific?

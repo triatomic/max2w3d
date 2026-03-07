@@ -1,169 +1,164 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Redist">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
-    </Filter>
-    <Filter Include="Source">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="Source\Dialog">
-      <UniqueIdentifier>{7b178397-aff0-4af3-b2af-0dec97d82c4a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Redist\Dialog">
-      <UniqueIdentifier>{d474dd46-83b2-486c-be3e-1bea886659e4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Content">
-      <UniqueIdentifier>{54626ddb-c731-4644-ada1-bdec9793c44f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="External">
-      <UniqueIdentifier>{ba7d749f-21bd-4776-a4c2-1b095f724dfa}</UniqueIdentifier>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Redist\w3dutilities.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\w3dexport.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\w3dmaterial.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\w3dappdatachunk.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="resource.h" />
-    <ClInclude Include="Redist\Dialog\w3dexportsettingsdlg.h">
-      <Filter>Redist\Dialog</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\Dialog\w3dmaterialpassdlg.h">
-      <Filter>Redist\Dialog</Filter>
-    </ClInclude>
-    <ClInclude Include="general.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\Dialog\w3dmiscutilitiesdlg.h">
-      <Filter>Redist\Dialog</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\w3dmaxcommonhelpers.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\w3dmaxcommonhelpers.inl">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\Dialog\w3dexportdlg.h">
-      <Filter>Redist\Dialog</Filter>
-    </ClInclude>
-    <ClInclude Include="Redist\w3dskin.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-    <ClInclude Include="dxutil.h">
-      <Filter>Redist</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="Source\dllmain.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\w3dutilities.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\w3dexport.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\w3dmaterial.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Dialog\w3dmaterialpassdlg.cpp">
-      <Filter>Source\Dialog</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\w3dappdatachunk.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Dialog\w3dexportsettingsdlg.cpp">
-      <Filter>Source\Dialog</Filter>
-    </ClCompile>
-    <ClCompile Include="..\scripts\engine_io.cpp">
-      <Filter>External</Filter>
-    </ClCompile>
-    <ClCompile Include="..\scripts\Crc32.cpp">
-      <Filter>External</Filter>
-    </ClCompile>
-    <ClCompile Include="..\scripts\straw.cpp">
-      <Filter>External</Filter>
-    </ClCompile>
-    <ClCompile Include="..\scripts\engine_string.cpp">
-      <Filter>External</Filter>
-    </ClCompile>
-    <ClCompile Include="general.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="..\render\AABTreeBuilderClass.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\scripts\base64.cpp">
-      <Filter>External</Filter>
-    </ClCompile>
-    <ClCompile Include="..\scripts\CriticalSectionClass.cpp">
-      <Filter>External</Filter>
-    </ClCompile>
-    <ClCompile Include="..\scripts\SimpleFileFactoryClass.cpp">
-      <Filter>External</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Dialog\w3dmiscutilitiesdlg.cpp">
-      <Filter>Source\Dialog</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\w3dmaxcommonhelpers.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Dialog\w3dexportdlg.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\w3dskin.cpp">
-      <Filter>Source</Filter>
+      <Filter>01. Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\scripts\ChunkClasses.cpp">
-      <Filter>External</Filter>
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="..\scripts\Matrix3D.cpp">
-      <Filter>External</Filter>
+    <ClCompile Include="..\scripts\Crc32.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="..\render\AABTreeBuilderClass.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="..\scripts\CriticalSectionClass.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="Source\maxscript.cpp">
-      <Filter>Source</Filter>
+    <ClCompile Include="..\scripts\engine_io.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\engine_string.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\engine_string_utils.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\scripts\EulerAngles.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="dxmaterial.cpp">
-      <Filter>Source</Filter>
+      <Filter>01. Sources</Filter>
     </ClCompile>
     <ClCompile Include="..\scripts\HashTemplateKeyClass.cpp">
-      <Filter>External</Filter>
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\Matrix3D.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\SimpleFileFactoryClass.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\scripts\straw.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\dxmaterial.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dexportdlg.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dexportsettingsdlg.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dmaterialpassdlg.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dmiscutilitiesdlg.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\dllmain.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\maxscript.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\w3dappdatachunk.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\w3dexport.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\w3dmaterial.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\w3dmaxcommonhelpers.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\w3dskin.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\w3dutilities.cpp">
+      <Filter>01. Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\w3dmaxtools.rc">
+      <Filter>04. Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\w3dmaxtools_pch.cpp">
+      <Filter>01. Sources</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="w3dmaxtools.def" />
-    <None Include="Content\dazzle.ini">
-      <Filter>Content</Filter>
-    </None>
+    <ClInclude Include="..\w3dmaxtools\d3dx11effect.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\d3dxGlobal.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\dxutil.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\Dialog\w3dexportdlg.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\Dialog\w3dexportsettingsdlg.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\Dialog\w3dmaterialpassdlg.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\Dialog\w3dmiscutilitiesdlg.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\w3dappdatachunk.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\w3dexport.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\w3dmaterial.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\w3dmaxcommonhelpers.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\w3dmaxcommonhelpers.inl">
+      <Filter>Redist</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\w3dskin.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\w3dutilities.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\resource.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\w3dmaxtools_pch.h">
+      <Filter>02. Headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="w3dmaxtools.rc" />
+    <CustomBuild Include="..\w3dmaxtools\dxutil.def" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="Content\w3dhublogo.bmp">
-      <Filter>Content</Filter>
-    </Image>
-    <Image Include="Content\w3dhublogo.bmp">
-      <Filter>Content</Filter>
-    </Image>
+    <Natvis Include="..\shared\w3d_types.natvis">
+      <Filter>shared</Filter>
+    </Natvis>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="dxutil.def">
-      <Filter>Source</Filter>
-    </CustomBuild>
+    <Filter Include="01. Sources">
+      <UniqueIdentifier>{7b1fa522-5cb6-6100-2f09-83a6f18e41f4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="02. Headers">
+      <UniqueIdentifier>{5d9751ee-1987-b147-ca0c-615c7df01f3f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="04. Resources">
+      <UniqueIdentifier>{cb3668f1-f224-6305-cf09-841942f5de88}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Redist">
+      <UniqueIdentifier>{cfaa96c0-1b04-6fd3-deef-367e2bca9dd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shared">
+      <UniqueIdentifier>{b9e7819e-c763-6313-e2fb-3eefcfecfc0e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

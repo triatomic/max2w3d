@@ -1,4 +1,3 @@
-#include "general.h"
 #include <unordered_map>
 #include "Dialog/w3dexportdlg.h"
 #include "EnumUtilities.h"
@@ -81,7 +80,7 @@ namespace W3D::MaxTools
 
 	INT_PTR W3DExportDlg::ShowDialog()
 	{
-		//TT_PROFILER_SCOPE("Export Settings Dialog");
+		//TT_PROFILER_SCOPE_N("Export Settings Dialog");
 		return DialogBoxParam(hInstance, MAKEINTRESOURCE(IDD_W3D_EXPORT), GetCOREInterface()->GetMAXHWnd(), W3DExportDlg::DlgProc, reinterpret_cast<LPARAM>(this));
 	}
 
@@ -191,6 +190,7 @@ namespace W3D::MaxTools
 		SetCheckBox(root, IDC_DEDUPLICATE, m_Settings.MeshDeduplication);
 		SetCheckBox(root, IDC_NEWAABTREE, m_Settings.NewAABTree);
 #endif
+		SetCheckBox(root, IDC_MIKKTSPACE, m_Settings.MikkTSpace);
 		SetCheckBox(root, IDC_USE_EXT_SKELETON, m_Settings.UseExistingSkeleton);
 		SetCheckBox(m_DialogRoot, IDC_REVIEW_LOG, m_Settings.ReviewLog);
 		
@@ -271,6 +271,9 @@ namespace W3D::MaxTools
 			m_Settings.NewAABTree = IsDlgButtonChecked(m_ActiveTab, controlID);
 			return TRUE;
 #endif
+		case IDC_MIKKTSPACE:
+			m_Settings.MikkTSpace = IsDlgButtonChecked(m_ActiveTab, controlID);
+			return TRUE;
 		case IDC_USE_EXT_SKELETON:
 			m_Settings.UseExistingSkeleton = IsDlgButtonChecked(m_ActiveTab, controlID);
 			RefreshExternalSkeletonButton();

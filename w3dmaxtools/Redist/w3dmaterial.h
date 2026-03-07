@@ -246,6 +246,8 @@ namespace W3D::MaxTools
 		Stage1AlphaBitmap,
 
 		ObsoleteParam,
+		Stage0Resize,
+		Stage1Resize,
 	};
 
 	enum class W3DMaterialRefID : int

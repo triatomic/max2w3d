@@ -199,9 +199,11 @@ BEGIN
     COMBOBOX        IDC_STAGE_1_PASS_HINT,45,150,77,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Pass Hint:",IDC_STATIC,11,152,33,8
     CONTROL         "Alpha Bitmap",IDC_STAGE_1_ALPHA_BITMAP,"CustButton",WS_TABSTOP,125,150,68,14
+    CONTROL         "Resize",IDC_STAGE_0_RESIZE,"CustButton",WS_TABSTOP,126,31,32,14
+    CONTROL         "Resize",IDC_STAGE_1_RESIZE,"CustButton",WS_TABSTOP,126,115,32,14
 END
 
-IDD_W3D_UTIL_EXPORT_SETTINGS DIALOGEX 0, 0, 108, 317
+IDD_W3D_UTIL_EXPORT_SETTINGS DIALOGEX 0, 0, 108, 326
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
@@ -209,7 +211,7 @@ BEGIN
     EDITTEXT        IDC_SELECTED_EDIT,8,13,89,12,ES_CENTER | ES_MULTILINE | ES_UPPERCASE | ES_READONLY
     CONTROL         "Export Transform (Bone)",IDC_EXPORT_TRANSFORM,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,29,95,10
     CONTROL         "Export Geometry",IDC_EXPORT_GEOMETRY,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,41,71,10
-    GROUPBOX        "Geometry Options",IDC_STATIC,3,71,101,189
+    GROUPBOX        "Geometry Options",IDC_STATIC,3,71,101,199
     CONTROL         "Normal",IDC_GEOM_NORMAL,"Button",BS_AUTORADIOBUTTON | WS_GROUP,8,81,38,10
     CONTROL         "Cam-Paral.",IDC_GEOM_CAM_PARAL,"Button",BS_AUTORADIOBUTTON,8,94,51,10
     CONTROL         "Cam-Ornt",IDC_GEOM_CAM_ORIENT,"Button",BS_AUTORADIOBUTTON,8,107,47,10
@@ -227,25 +229,26 @@ BEGIN
     CONTROL         "Shadow",IDC_SHADOW,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,146,41,10
     CONTROL         "Shatter",IDC_SHATTER,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,159,40,10
     CONTROL         "Tangents",IDC_TANGENTS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,172,46,10
-    COMBOBOX        IDC_DAZZLE_MODE,8,200,89,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Enable Static Sorting",IDC_STATIC_SORTING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,218,82,10
-    LTEXT           "Sort:",IDC_STATIC_SORT_LEVEL_LABEL,49,232,17,8
-    CONTROL         "",IDC_STATIC_SORT_LEVEL_EDIT,"CustEdit",WS_TABSTOP,66,230,22,12
-    CONTROL         "",IDC_STATIC_SORT_LEVEL_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,88,230,10,12
-    GROUPBOX        "Collision Options",IDC_STATIC,3,261,101,51
-    CONTROL         "Physical",IDC_PHYSICAL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,271,41,10
-    CONTROL         "Projectile",IDC_PROJECTILE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,283,45,10
-    CONTROL         "Vehicle",IDC_VEHICLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,295,38,10
-    CONTROL         "Vis",IDC_VIS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,271,25,10
-    CONTROL         "Camera",IDC_CAMERA,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,283,41,10
+    COMBOBOX        IDC_DAZZLE_MODE,8,211,89,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Enable Static Sorting",IDC_STATIC_SORTING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,229,82,10
+    LTEXT           "Sort:",IDC_STATIC_SORT_LEVEL_LABEL,49,243,17,8
+    CONTROL         "",IDC_STATIC_SORT_LEVEL_EDIT,"CustEdit",WS_TABSTOP,66,241,22,12
+    CONTROL         "",IDC_STATIC_SORT_LEVEL_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,88,241,10,12
+    GROUPBOX        "Collision Options",IDC_STATIC,3,269,101,51
+    CONTROL         "Physical",IDC_PHYSICAL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,279,41,10
+    CONTROL         "Projectile",IDC_PROJECTILE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,291,45,10
+    CONTROL         "Vehicle",IDC_VEHICLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,303,38,10
+    CONTROL         "Vis",IDC_VIS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,279,25,10
+    CONTROL         "Camera",IDC_CAMERA,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,291,41,10
     CONTROL         "Prelit",IDC_PRELIT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,58,185,32,10
-    CONTROL         "Always Dyn Light",IDC_ALWAYSDYNLIGHT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,245,89,10
+    CONTROL         "Always Dyn Light",IDC_ALWAYSDYNLIGHT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,8,256,89,10
     CONTROL         "",IDC_SCREEN_EDIT,"CustEdit",WS_TABSTOP,50,52,39,12
     CONTROL         "",IDC_SCREEN_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,89,52,10,12
     LTEXT           "Screen Size:",IDC_SCREEN_LABEL,8,54,40,8
+    CONTROL         "Light",IDC_GEOM_LIGHT,"Button",BS_AUTORADIOBUTTON,8,198,31,10
 END
 
-IDD_W3D_UTIL_TOOLS DIALOGEX 0, 0, 108, 142
+IDD_W3D_UTIL_TOOLS DIALOGEX 0, 0, 108, 157
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
@@ -256,10 +259,11 @@ BEGIN
     PUSHBUTTON      "Phys",IDC_SELECT_PHYS,8,58,29,14
     PUSHBUTTON      "Proj",IDC_SELECT_PROJ,39,58,29,14
     PUSHBUTTON      "Vis",IDC_SELECT_VIS,70,58,29,14
-    GROUPBOX        "Naming Utilities",IDC_STATIC,4,79,99,58
+    GROUPBOX        "Naming Utilities",IDC_STATIC,4,79,99,74
     PUSHBUTTON      "Assign Node names",IDC_ASSIGN_NODE_NAMES,8,88,91,14
     PUSHBUTTON      "Assign Material Names",IDC_ASSIGN_MATERIAL_NAMES,8,103,91,14
     PUSHBUTTON      "Assign Extensions",IDC_ASSIGN_EXTENSIONS,8,118,91,14
+    PUSHBUTTON      "Rename Bones",IDC_RENAME_BONES,8,133,91,14
 END
 
 IDD_W3D_UTIL_NODE_NAMES DIALOGEX 0, 0, 199, 203
@@ -351,88 +355,129 @@ BEGIN
     CONTROL         IDS_BLEND_MODE,IDC_STATIC,"Static",SS_BITMAP | SS_REALSIZEIMAGE,11,11,32,30,WS_EX_TRANSPARENT
 END
 
+/////////////////////////////////////////////////////////////////////////////
+// Hierarchical Model (Static)
 IDD_W3D_EXPORT_HIERARCHICAL_MODEL DIALOGEX 0, 0, 180, 200
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
+FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "This will export a model without animation data.",IDC_STATIC,3,20,174,12
-    CONTROL         "Smooth Vertex Normals Across Meshes",IDC_SMOOTH_VERTICES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,48,140,10
-    CONTROL         "Optimise Collision Detection",IDC_OPT_COLLISONS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,66,103,10
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,25,120,127,1
-    CONTROL         "Export Using Existing Skeleton",IDC_USE_EXT_SKELETON,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,128,113,10
-    CONTROL         "Browse...",IDC_BROWSE,"CustButton",WS_TABSTOP | 0x3,22,145,133,14
-    CONTROL         "Eliminate duplicate reference meshes",IDC_DEDUPLICATE,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,84,134,10
-    CONTROL         "Export New AABTree",IDC_NEWAABTREE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,102,83,10
+    LTEXT   "This will export a model without animation data.", IDC_STATIC, 3, 20, 174, 12
+
+    CONTROL "Smooth Vertex Normals Across Meshes", IDC_SMOOTH_VERTICES, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 46, 140, 10
+    CONTROL "Optimise Collision Detection", IDC_OPT_COLLISONS, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 62, 140, 10
+    CONTROL "Eliminate duplicate reference meshes", IDC_DEDUPLICATE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 78, 140, 10
+    CONTROL "Export New AABTree", IDC_NEWAABTREE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 94, 140, 10
+    CONTROL "Export MikkTSpace-compliant Tangents", IDC_MIKKTSPACE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 110, 147, 10
+
+    CONTROL "", IDC_STATIC, "Static", SS_ETCHEDHORZ, 25, 133, 127, 1
+    CONTROL "Export Using Existing Skeleton", IDC_USE_EXT_SKELETON, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 142, 140, 10
+    CONTROL "Browse...", IDC_BROWSE, "CustButton", WS_TABSTOP | 0x3, 22, 158, 133, 14
 END
 
+
+/////////////////////////////////////////////////////////////////////////////
+// Hierarchical Animated Model
 IDD_W3D_EXPORT_HIERARCHICAL_ANIMATED_MODEL DIALOGEX 0, 0, 180, 200
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
+FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "This will export a model with geometry and animation",IDC_STATIC,3,3,174,20
-    CONTROL         "Smooth Vertex Normals Across Meshes",IDC_SMOOTH_VERTICES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,16,140,10
-    CONTROL         "Optimise Collision Detection",IDC_OPT_COLLISONS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,34,103,10
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,25,88,127,1
-    CONTROL         "Export Using Existing Skeleton",IDC_USE_EXT_SKELETON,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,96,113,10
-    CONTROL         "Browse...",IDC_BROWSE,"CustButton",WS_TABSTOP | 0x3,22,113,133,14
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,25,135,127,1
-    CONTROL         "",IDC_FRAMES_EDIT,"CustEdit",WS_TABSTOP,55,142,22,12
-    CONTROL         "",IDC_FRAMES_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,77,142,10,12
-    LTEXT           "Frames:",IDC_STATIC,26,144,27,8
-    CONTROL         "",IDC_FRAMES_TO_EDIT,"CustEdit",WS_TABSTOP,119,142,22,12
-    CONTROL         "",IDC_FRAMES_TO_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,141,142,10,12
-    LTEXT           "To:",IDC_STATIC,107,144,12,8
-    CONTROL         "Eliminate duplicate reference meshes",IDC_DEDUPLICATE,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,51,134,10
-    CONTROL         "Export New AABTree",IDC_NEWAABTREE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,68,83,10
+    LTEXT   "This will export a model with geometry and animation.", IDC_STATIC, 3, 6, 174, 12
+
+    CONTROL "Smooth Vertex Normals Across Meshes", IDC_SMOOTH_VERTICES, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 22, 140, 10
+    CONTROL "Optimise Collision Detection", IDC_OPT_COLLISONS, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 38, 140, 10
+    CONTROL "Eliminate duplicate reference meshes", IDC_DEDUPLICATE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 54, 140, 10
+    CONTROL "Export New AABTree", IDC_NEWAABTREE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 70, 140, 10
+    CONTROL "Export MikkTSpace-compliant Tangents", IDC_MIKKTSPACE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 86, 147, 10
+
+    CONTROL "", IDC_STATIC, "Static", SS_ETCHEDHORZ, 25, 105, 127, 1
+    CONTROL "Export Using Existing Skeleton", IDC_USE_EXT_SKELETON, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 114, 140, 10
+    CONTROL "Browse...", IDC_BROWSE, "CustButton", WS_TABSTOP | 0x3, 22, 130, 133, 14
+
+    CONTROL "", IDC_STATIC, "Static", SS_ETCHEDHORZ, 25, 150, 127, 1
+    LTEXT   "Frames:", IDC_STATIC, 26, 158, 27, 8
+    CONTROL "", IDC_FRAMES_EDIT, "CustEdit", WS_TABSTOP, 55, 156, 22, 12
+    CONTROL "", IDC_FRAMES_SPIN, "SpinnerControl", WS_TABSTOP | 0x20, 77, 156, 10, 12
+    LTEXT   "To:", IDC_STATIC, 107, 158, 12, 8
+    CONTROL "", IDC_FRAMES_TO_EDIT, "CustEdit", WS_TABSTOP, 119, 156, 22, 12
+    CONTROL "", IDC_FRAMES_TO_SPIN, "SpinnerControl", WS_TABSTOP | 0x20, 141, 156, 10, 12
 END
 
+
+/////////////////////////////////////////////////////////////////////////////
+// Animation Only
 IDD_W3D_EXPORT_ANIMATION DIALOGEX 0, 0, 180, 200
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
+FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "This will export the animation without any geometry data.",-1,3,10,174,20
-    CONTROL         "Export Using Existing Skeleton",IDC_USE_EXT_SKELETON,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,21,38,113,10
-    CONTROL         "Browse...",IDC_BROWSE,"CustButton",WS_TABSTOP | 0x3,24,53,133,14
-    CONTROL         "",-1,"Static",SS_ETCHEDHORZ,27,77,127,1
-    CONTROL         "",IDC_FRAMES_EDIT,"CustEdit",WS_TABSTOP,57,84,22,12
-    CONTROL         "",IDC_FRAMES_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,79,84,10,12
-    LTEXT           "Frames:",-1,28,86,27,8
-    CONTROL         "",IDC_FRAMES_TO_EDIT,"CustEdit",WS_TABSTOP,121,84,22,12
-    CONTROL         "",IDC_FRAMES_TO_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,143,84,10,12
-    LTEXT           "To:",-1,109,86,12,8
+    LTEXT   "This will export the animation without any geometry data.", -1, 3, 14, 174, 12
+
+    CONTROL "Export Using Existing Skeleton", IDC_USE_EXT_SKELETON, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 38, 140, 10
+    CONTROL "Browse...", IDC_BROWSE, "CustButton", WS_TABSTOP | 0x3, 22, 54, 133, 14
+
+    CONTROL "", -1, "Static", SS_ETCHEDHORZ, 25, 76, 127, 1
+    LTEXT   "Frames:", -1, 26, 86, 27, 8
+    CONTROL "", IDC_FRAMES_EDIT, "CustEdit", WS_TABSTOP, 55, 84, 22, 12
+    CONTROL "", IDC_FRAMES_SPIN, "SpinnerControl", WS_TABSTOP | 0x20, 77, 84, 10, 12
+    LTEXT   "To:", -1, 107, 86, 12, 8
+    CONTROL "", IDC_FRAMES_TO_EDIT, "CustEdit", WS_TABSTOP, 119, 84, 22, 12
+    CONTROL "", IDC_FRAMES_TO_SPIN, "SpinnerControl", WS_TABSTOP | 0x20, 141, 84, 10, 12
 END
 
+
+/////////////////////////////////////////////////////////////////////////////
+// Skeleton Only
 IDD_W3D_EXPORT_SKELETON DIALOGEX 0, 0, 180, 200
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
+FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "This will export the hierarchy tree without any geometry or animation data.",-1,3,20,174,20
+    LTEXT   "This will export the hierarchy tree without any geometry or animation data.", -1, 3, 20, 174, 20
 END
 
+
+/////////////////////////////////////////////////////////////////////////////
+// Terrain
 IDD_W3D_EXPORT_TERRAIN DIALOGEX 0, 0, 180, 200
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
+FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "This will export the geometry in the Renegade terrain format.",-1,3,20,174,17
-    CONTROL         "Smooth Vertex Normals Across Meshes",IDC_SMOOTH_VERTICES,
-                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,48,140,10
-    CONTROL         "Export New AABTree",IDC_NEWAABTREE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,19,65,83,10
+    LTEXT   "This will export the geometry in the Renegade terrain format.", -1, 3, 20, 174, 17
+
+    CONTROL "Smooth Vertex Normals Across Meshes", IDC_SMOOTH_VERTICES, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 46, 140, 10
+    CONTROL "Export New AABTree", IDC_NEWAABTREE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 62, 140, 10
+    CONTROL "Export MikkTSpace-compliant Tangents", IDC_MIKKTSPACE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 78, 147, 10
 END
 
+
+/////////////////////////////////////////////////////////////////////////////
+// Simple Mesh
 IDD_W3D_EXPORT_SIMPLE_MESH DIALOGEX 0, 0, 180, 200
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
-FONT 8, "MS Shell Dlg", 0, 0, 0x0
+FONT 8, "MS Shell Dlg"
 BEGIN
-    LTEXT           "This will export a single mesh. If there are more than one mesh, only the first one will be exported.",-1,3,20,174,25
-    CONTROL         "Optimise Collision Detection",IDC_OPT_COLLISONS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,48,103,10
-    CONTROL         "Export New AABTree",IDC_NEWAABTREE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,64,83,10
+    LTEXT   "This will export a single mesh. If there are more than one mesh, only the first one will be exported.", -1, 3, 20, 174, 25
+
+    CONTROL "Optimise Collision Detection", IDC_OPT_COLLISONS, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 50, 140, 10
+    CONTROL "Export New AABTree", IDC_NEWAABTREE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 66, 140, 10
+    CONTROL "Export MikkTSpace-compliant Tangents", IDC_MIKKTSPACE, "Button",
+            BS_AUTOCHECKBOX | WS_TABSTOP, 19, 82, 147, 10
 END
 
 IDD_W3D_EXPORT_LOG DIALOGEX 0, 0, 334, 319
@@ -494,13 +539,13 @@ BEGIN
         LEFTMARGIN, 3
         RIGHTMARGIN, 104
         TOPMARGIN, 2
-        BOTTOMMARGIN, 312
+        BOTTOMMARGIN, 321
     END
 
     IDD_W3D_UTIL_TOOLS, DIALOG
     BEGIN
         TOPMARGIN, 4
-        BOTTOMMARGIN, 138
+        BOTTOMMARGIN, 153
     END
 
     IDD_W3D_UTIL_NODE_NAMES, DIALOG
@@ -850,6 +895,7 @@ BEGIN
     IDS_SURFACE_TYPE_EXTRA_6 "Extra 6"
     IDS_SURFACE_TYPE_EXTRA_7 "Extra 7"
     IDS_SURFACE_TYPE_EXTRA_8 "Extra 8"
+    IDS_RESIZE              "Resize"
 END
 
 #endif    // English (United Kingdom) resources

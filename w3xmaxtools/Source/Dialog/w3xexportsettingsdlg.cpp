@@ -1,4 +1,3 @@
-#include "general.h"
 #include <maxheapdirect.h>
 #include <iInstanceMgr.h>
 #include <sstream>

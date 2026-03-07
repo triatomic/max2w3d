@@ -1,9 +1,10 @@
 #pragma once
 
 class StringView {
-	const char* m_ptr;
-	size_t m_size;
+	const char* m_ptr = nullptr;
+	size_t m_size = 0;
 public:
+	StringView() = default;
 	TT_INLINE constexpr StringView(const char* str) noexcept : m_ptr(str), m_size(__builtin_strlen(str)) {}
 	TT_INLINE constexpr StringView(const char* begin_, const char* end_) noexcept : m_ptr(begin_), m_size(size_t(end_ - begin_)) {}
 	TT_INLINE constexpr StringView(const char* begin_, size_t size_) noexcept : m_ptr(begin_), m_size(size_) {}
@@ -17,14 +18,19 @@ public:
 	TT_INLINE constexpr bool empty() const noexcept { return m_size == 0; }
 	TT_INLINE constexpr char operator[](size_t i) const noexcept { return m_ptr[i]; }
 	TT_INLINE constexpr bool operator==(const StringView& other) const noexcept {
-		return (this->m_size == other.m_size) && ((this->m_ptr == other.m_ptr) || (!__builtin_memcmp(this->m_ptr, other.m_ptr, m_size)));
+		// for some reason memcmp is slow, while strcmp is hard to beat
+		if (std::is_constant_evaluated())
+			return (this->m_size == other.m_size) && ((this->m_ptr == other.m_ptr) || (!__builtin_memcmp(this->m_ptr, other.m_ptr, m_size)));
+		else
+			return (this->m_size == other.m_size) && ((this->m_ptr == other.m_ptr) || (!strcmp(this->m_ptr, other.m_ptr)));
 	}
 };
 
 class WideStringView {
-	const wchar_t* m_ptr;
-	size_t m_size;
+	const wchar_t* m_ptr = nullptr;
+	size_t m_size = 0;
 public:
+	WideStringView() = default;
 	TT_INLINE constexpr WideStringView(const wchar_t* str) noexcept : m_ptr(str), m_size(__builtin_wcslen(str)) {}
 	TT_INLINE constexpr WideStringView(const wchar_t* begin_, const wchar_t* end_) noexcept : m_ptr(begin_), m_size(size_t(end_ - begin_)) {}
 	TT_INLINE constexpr WideStringView(const wchar_t* begin_, size_t size_) noexcept : m_ptr(begin_), m_size(size_) {}

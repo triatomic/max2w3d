@@ -1,4 +1,3 @@
-#include "General.h"
 #include "EulerAngles.h"
 #include "Matrix3D.h"
 
