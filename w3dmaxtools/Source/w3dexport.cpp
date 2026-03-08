@@ -1,4 +1,3 @@
-#include "general.h"
 #include <atomic>
 #include <iskin.h>
 #include <stdmat.h>
@@ -10,9 +9,14 @@
 #include "BufferedFileClass.h"
 #include "w3d.h"
 #include "matrix3d.h"
+#include <d3dx9.h>
+#include <id3d9graphicswindow.h>
 #ifndef W3X
 #include "chunkclass.h"
 #include "w3dutilities.h"
+#include <d3d11.h>
+#include "..\d3dx11effect.h"
+#include "d3dcompiler.h"
 #else
 #include "w3xutilities.h"
 #include "ramfileclass.h"
@@ -28,13 +32,18 @@
 #include "vector.h"
 #include <unordered_map>
 #include <IDxMaterial.h>
-#include <d3dx9.h>
-#include <id3d9graphicswindow.h>
 #include <pbbitmap.h>
 #include <vector>
 #include <deque>
 #include <unordered_set>
 #include "CriticalSectionClass.h"
+
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
 
 #ifdef W3X
 extern unsigned long crc_table[256];
@@ -81,6 +90,7 @@ namespace W3D::MaxTools
 			if (error)
 			{
 				delete[] error;
+				error = nullptr;
 			}
 		}
 
@@ -185,12 +195,11 @@ namespace W3D::MaxTools
 	class BooleanVectorClass
 	{
 	public:
-		BooleanVectorClass(unsigned int size = 0, unsigned char* array = nullptr);
+		BooleanVectorClass(unsigned int size = 0);
 		BooleanVectorClass(BooleanVectorClass const& vector);
 		BooleanVectorClass& operator =(BooleanVectorClass const& vector);
 		bool operator == (BooleanVectorClass const& vector) const;
 
-		void Init(unsigned int size, unsigned char* array);
 		void Init(unsigned int size);
 		int Length() { return BitCount; };
 		void Reset();
@@ -353,9 +362,9 @@ namespace W3D::MaxTools
 		return count + 8 * i;
 	}
 
-	BooleanVectorClass::BooleanVectorClass(unsigned int size, unsigned char* array) : BitCount(size), Copy(false), LastIndex(-1), BitArray(0, nullptr)
+	BooleanVectorClass::BooleanVectorClass(unsigned int size) : BitCount(size), Copy(false), LastIndex(-1), BitArray(0)
 	{
-		BitArray.Resize(((size + (8 - 1)) / 8), array);
+		BitArray.Resize(((size + (8 - 1)) / 8));
 	}
 
 	BooleanVectorClass::BooleanVectorClass(BooleanVectorClass const& vector)
@@ -458,14 +467,6 @@ namespace W3D::MaxTools
 		}
 	}
 
-	void BooleanVectorClass::Init(unsigned int size, unsigned char* array)
-	{
-		Copy = false;
-		LastIndex = -1;
-		BitCount = size;
-		BitArray.Resize(((size + (8 - 1)) / 8), array);
-	}
-
 	void BooleanVectorClass::Init(unsigned int size)
 	{
 		Copy = false;
@@ -541,7 +542,7 @@ namespace W3D::MaxTools
 
 		LogDataDialogClass(HWND parent) : DlgWindow(nullptr), ParentWindow(parent), State(UNINITIALIZED)
 		{
-			TT_PROFILER_SCOPE("Initialize Log Dialog");
+			TT_PROFILER_SCOPE_N("Initialize Log Dialog");
 			ThreadHandle = (HANDLE)_beginthreadex(nullptr, 0, ThreadProc, this, 0, nullptr);
 
 			if (ThreadHandle)
@@ -648,7 +649,7 @@ namespace W3D::MaxTools
 
 				return false;
 			case WM_TIMER:
-				TT_PROFILER_SCOPE("Log To Dialog");
+				TT_PROFILER_SCOPE_NAMED_N(profileScopeLogToDialog, "Log To Dialog");
 
 				if (State >= REVIEW_LOG)
 				{
@@ -666,7 +667,7 @@ namespace W3D::MaxTools
 
 				if (!str.Is_Empty() && State < PRESSED_OK)
 				{
-					TT_PROFILER_TAG("Length", str.Get_Length());
+					TT_PROFILER_SCOPE_VALUE(profileScopeLogToDialog, str.Get_Length());
 					HWND log = GetDlgItem(DlgWindow, IDC_LOG);
 					Edit_SetSel(log, 0xFFFFFFFF, -1);
 					Edit_ReplaceSel(log, str.Peek_Buffer());
@@ -681,10 +682,12 @@ namespace W3D::MaxTools
 
 		static INT_PTR CALLBACK DlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
+			// It's necessary that the string given to frame begin/end is the same pointer. The compiler may or may not make two string literals the same value
+			static constexpr const char* const dialogProfileScopeID = "LogDataDialog";
+
 			if (message == WM_INITDIALOG)
 			{
-				TT_PROFILER_THREAD_START("LogDataDialog");
-				TT_PROFILER_SCOPE_START("LogDataDialog");
+				TT_PROFILER_FRAME_BEGIN(dialogProfileScopeID);
 				((LogDataDialogClass*)lParam)->DlgWindow = hWnd;
 				SetProp(hWnd, L"LogDataDialogClass", (HANDLE)lParam);
 			}
@@ -693,8 +696,7 @@ namespace W3D::MaxTools
 
 			if (message == WM_DESTROY)
 			{
-				TT_PROFILER_SCOPE_STOP();
-				TT_PROFILER_THREAD_STOP();
+				TT_PROFILER_FRAME_END(dialogProfileScopeID);
 				RemoveProp(hWnd, L"LogDataDialogClass");
 			}
 
@@ -723,7 +725,7 @@ namespace W3D::MaxTools
 
 	class HierarchySave
 	{
-		struct HierarchyNodeStruct : public NoEqualsClass<HierarchyNodeStruct>
+		struct HierarchyNodeStruct
 		{
 
 			INode* Node;
@@ -940,9 +942,7 @@ namespace W3D::MaxTools
 
 			if (dlg.ShowDialog() == IDOK)
 			{
-				TT_PROFILER_THREAD_START("Export Thread");
-				TT_PROFILER_START_CAPTURE(Optick::Mode::Type(Optick::Mode::AUTOSAMPLING | Optick::Mode::INSTRUMENTATION | Optick::Mode::SWITCH_CONTEXT | Optick::Mode::TAGS), 8192);
-				TT_PROFILER_SCOPE("W3DExport::DoExport");
+				TT_PROFILER_SCOPE_N("W3DExport::DoExport");
 
 				memcpy(&m_Settings, settings, sizeof(W3DExportSettings));
 				WideStringClass str1 = m_Settings.ExistingSkeletonFileName;
@@ -970,6 +970,7 @@ namespace W3D::MaxTools
 					m_Settings.ExportAsTerrain = false;
 					m_Settings.OptimiseCollisions = true;
 					m_Settings.SmoothVertexNormals = false;
+					m_Settings.MikkTSpace = false;
 #ifndef W3X
 					m_Settings.MeshDeduplication = false;
 					m_Settings.NewAABTree = false;
@@ -984,6 +985,7 @@ namespace W3D::MaxTools
 					m_Settings.OptimiseCollisions = true;
 					m_Settings.SmoothVertexNormals = false;
 					m_Settings.ExportAsTerrain = false;
+					m_Settings.MikkTSpace = false;
 #ifndef W3X
 					m_Settings.MeshDeduplication = false;
 					m_Settings.NewAABTree = false;
@@ -1026,7 +1028,7 @@ namespace W3D::MaxTools
 
 					if (file.Open(2))
 					{
-						TT_PROFILER_SCOPE("Export");
+						TT_PROFILER_SCOPE_N("Export");
 #ifndef W3X
 						ChunkSaveClass csave(&file);
 #else
@@ -1043,7 +1045,7 @@ namespace W3D::MaxTools
 						SAFE_DELETE(OriginNodeList);
 
 						{
-							TT_PROFILER_SCOPE("Redraw Views");
+							TT_PROFILER_SCOPE_N("Redraw Views");
 							Int->RedrawViews(Int->GetTime());
 						}
 					}
@@ -1061,10 +1063,6 @@ namespace W3D::MaxTools
 		{
 			MessageBox(nullptr, e.GetError(), L"Error", MB_SETFOREGROUND);
 		}
-
-		TT_PROFILER_STOP_CAPTURE();
-		TT_PROFILER_SAVE_CAPTURE("W3DExport");
-		TT_PROFILER_THREAD_STOP();
 
 		timeEndPeriod(1);
 		return 1;
@@ -1358,6 +1356,21 @@ namespace W3D::MaxTools
 		return W3DUtilities::GetOrCreateW3DAppDataChunk(*node).GeometryType == W3DGeometryType::Aggregate;
 	}
 
+	bool IsLight(INode* node)
+	{
+		if (node->IsGroupHead())
+		{
+			return false;
+		}
+
+		if (!(enum_has_flags(W3DUtilities::GetOrCreateW3DAppDataChunk(*node).ExportFlags, W3DExportFlags::ExportGeometry)))
+		{
+			return false;
+		}
+
+		return W3DUtilities::GetOrCreateW3DAppDataChunk(*node).GeometryType == W3DGeometryType::Light;
+	}
+
 	bool IsDazzle(INode* node)
 	{
 		if (node->IsGroupHead())
@@ -1425,7 +1438,7 @@ namespace W3D::MaxTools
 			*s = 0;
 		}
 
-		_strupr(newname);
+		tt_strupr_n(newname, W3D_NAME_LEN - 1);
 	}
 
 	// TODO(Mara): We should cache more node-related data! E.g. the export "chunks", properties like "is origin", transforms, etc.
@@ -1461,8 +1474,12 @@ namespace W3D::MaxTools
 	{
 		const StringClass& name = GetW3DNameFromNode(node);
 		size_t len = (size_t)name.Get_Length();
+		if (len > W3D_NAME_LEN)
+		{
+			len = W3D_NAME_LEN;
+		}
 		memcpy(dest, name.Peek_Buffer(), len);
-		size_t rest = max(W3D_NAME_LEN - len, 0);
+		size_t rest = (len < W3D_NAME_LEN) ? (W3D_NAME_LEN - len) : 0;
 		memset(dest + len, '\0', rest);
 	}
 
@@ -1520,7 +1537,7 @@ namespace W3D::MaxTools
 		LogDataDialogClass::WriteLogWindow(buf);
 		MessageBox(nullptr, buf, L"Error", MB_SETFOREGROUND);
 		return false;
-	}
+}
 #endif
 
 	Matrix3 HierarchySave::FixupMatrix(Matrix3& m)
@@ -1990,7 +2007,7 @@ namespace W3D::MaxTools
 
 	int HierarchySave::AddNode(INode* node, int parent)
 	{
-		if (BoneCount >= Bones.Length())
+		if (BoneCount >= Bones.Capacity())
 		{
 			Bones.Grow();
 		}
@@ -2238,7 +2255,7 @@ namespace W3D::MaxTools
 
 	class MeshConnection
 	{
-		class ConnectionStruct : public NoEqualsClass<ConnectionStruct>
+		class ConnectionStruct
 		{
 		public:
 			int BoneIndex;
@@ -2263,6 +2280,7 @@ namespace W3D::MaxTools
 		char Name[W3D_NAME_LEN];
 		DynamicVectorClass<ConnectionStruct> Meshes;
 		DynamicVectorClass<ConnectionStruct> Aggregates;
+		DynamicVectorClass<ConnectionStruct> Lights;
 		DynamicVectorClass<ConnectionStruct> Proxies;
 
 #ifndef W3X
@@ -2295,11 +2313,11 @@ namespace W3D::MaxTools
 			if (type)
 			{
 				*type = Meshes[index].Type;
-			}
+		}
 #endif
 
 			return true;
-		}
+	}
 
 #ifndef W3X
 		bool GetAggregateConnectionInfo(int index, const char** name, int* bone, INode** node)
@@ -2331,7 +2349,43 @@ namespace W3D::MaxTools
 			if (type)
 			{
 				*type = Aggregates[index].Type;
+		}
+#endif
+
+			return true;
+		}
+
+#ifndef W3X
+		bool GetLightConnectionInfo(int index, const char** name, int* bone, INode** node)
+#else
+		bool GetLightConnectionInfo(int index, const char** name, int* bone, INode** node, int* type)
+#endif
+		{
+			if (index >= Lights.Count())
+			{
+				return false;
 			}
+
+			if (name)
+			{
+				*name = Lights[index].Name;
+			}
+
+			if (bone)
+			{
+				*bone = Lights[index].BoneIndex;
+			}
+
+			if (node)
+			{
+				*node = Lights[index].Node;
+			}
+
+#ifdef W3X
+			if (type)
+			{
+				*type = Lights[index].Type;
+		}
 #endif
 
 			return true;
@@ -2367,7 +2421,7 @@ namespace W3D::MaxTools
 			if (type)
 			{
 				*type = Proxies[index].Type;
-			}
+		}
 #endif
 
 			return true;
@@ -2488,7 +2542,7 @@ namespace W3D::MaxTools
 		INode* Node;
 		GeometryExportTaskClass(INode* node, LodData& lod) : BoneIndex(0), Time(lod.Time), Node(node)
 		{
-			//TT_PROFILER_SCOPE("GeometryExportTaskClass()");
+			//TT_PROFILER_SCOPE_N("GeometryExportTaskClass()");
 			CopyW3DNameFromNode(Name, node);
 #ifdef W3X
 			CheckW3DName(Name);
@@ -2523,6 +2577,7 @@ namespace W3D::MaxTools
 
 		virtual bool IsAggregate() { return false; }
 		virtual bool IsProxy() { return false; }
+		virtual bool IsLight() { return false; }
 		virtual int GetType() = 0;
 
 		void GetSubObjectName(char* subobjname, int size)
@@ -2578,7 +2633,7 @@ namespace W3D::MaxTools
 			FloatParam[3] = 0;
 			IntParam = 0;
 			BoolParam = false;
-		}
+	}
 
 		void SetName(const wchar_t* name)
 		{
@@ -2664,7 +2719,7 @@ namespace W3D::MaxTools
 			}
 		};
 
-		class ShadeClass : public NoEqualsClass<ShadeClass>
+		class ShadeClass
 		{
 		public:
 			W3dShaderStruct Shader;
@@ -2675,7 +2730,7 @@ namespace W3D::MaxTools
 			}
 		};
 
-		class VertMatClass : public NoEqualsClass<VertMatClass>
+		class VertMatClass
 		{
 		public:
 			W3dVertexMaterialStruct Material;
@@ -2695,17 +2750,27 @@ namespace W3D::MaxTools
 				if (MaterialName)
 				{
 					delete[] MaterialName;
+					MaterialName = nullptr;
 				}
 
 				if (MapperArgs[0])
 				{
 					delete[] MapperArgs[0];
+					MapperArgs[0] = nullptr;
 				}
 
 				if (MapperArgs[1])
 				{
 					delete[] MapperArgs[1];
+					MapperArgs[1] = nullptr;
 				}
+			}
+
+			VertMatClass(VertMatClass const& mat) : Pass(-1), Hash(0), MaterialName(nullptr)
+			{
+				MapperArgs[0] = nullptr;
+				MapperArgs[1] = nullptr;
+				*this = mat;
 			}
 
 			VertMatClass& operator =(VertMatClass const& mat)
@@ -2717,6 +2782,7 @@ namespace W3D::MaxTools
 				if (MaterialName)
 				{
 					delete[] MaterialName;
+					MaterialName = nullptr;
 				}
 
 				if (mat.MaterialName)
@@ -2751,7 +2817,7 @@ namespace W3D::MaxTools
 			}
 		};
 
-		class TexClass : public NoEqualsClass<TexClass>
+		class TexClass
 		{
 		public:
 			char* TextureName;
@@ -2767,12 +2833,19 @@ namespace W3D::MaxTools
 				if (TextureName)
 				{
 					delete[] TextureName;
+					TextureName = nullptr;
 				}
 
 				if (TextureInfo)
 				{
 					delete TextureInfo;
+					TextureInfo = nullptr;
 				}
+			}
+
+			TexClass(TexClass const& tex) : TextureName(nullptr), TextureInfo(nullptr), Hash(0)
+			{
+				*this = tex;
 			}
 
 			TexClass& operator =(TexClass const& tex)
@@ -2788,6 +2861,7 @@ namespace W3D::MaxTools
 				if (TextureName)
 				{
 					delete[] TextureName;
+					TextureName = nullptr;
 				}
 
 				if (fullpath)
@@ -2824,7 +2898,7 @@ namespace W3D::MaxTools
 			}
 		};
 
-		class FXShaderClass : public NoEqualsClass<FXShaderClass>
+		class FXShaderClass
 		{
 		public:
 			W3dFXShaderStruct ShaderHeader;
@@ -2834,6 +2908,11 @@ namespace W3D::MaxTools
 
 			FXShaderClass() : Hash(0)
 			{
+			}
+
+			FXShaderClass(FXShaderClass const& fx) : Hash(0)
+			{
+				*this = fx;
 			}
 
 			FXShaderClass& operator =(FXShaderClass const& fx)
@@ -3272,6 +3351,11 @@ namespace W3D::MaxTools
 							texinfo.Attributes |= W3DTEXTURE_PUBLISH;
 						}
 
+						if (pass.ParamBlock->GetInt(enum_to_value(j ? W3DMaterialParamID::Stage1Resize : W3DMaterialParamID::Stage0Resize)))
+						{
+							texinfo.Attributes |= W3DTEXTURE_RESIZE_OBSOLETE;
+						}
+
 						if (pass.ParamBlock->GetInt(enum_to_value(j ? W3DMaterialParamID::Stage1NoLOD : W3DMaterialParamID::Stage0NoLOD)))
 						{
 							texinfo.Attributes |= W3DTEXTURE_NO_LOD;
@@ -3323,6 +3407,8 @@ namespace W3D::MaxTools
 				}
 			}
 
+//#ifdef W3X
+#if 1
 			void GetFVFFromShader(ID3DXEffect* effect, D3DXHANDLE Technique, unsigned int* fvf, bool* NeedsTangents)
 			{
 				*fvf = 0;
@@ -3417,6 +3503,57 @@ namespace W3D::MaxTools
 
 				*fvf |= (c & 0xF) << 8;
 			}
+#else
+			void GetFVFFromShaderDX11(ID3DX11EffectTechnique *Technique, unsigned int* fvf)
+			{
+				*fvf = 0;
+				int count = 0;
+
+				if (!Technique)
+				{
+					return;
+				}
+
+				D3DX11_TECHNIQUE_DESC desc;
+				Technique->GetDesc(&desc);
+
+				for (int p = 0; p < desc.Passes;p++)
+				{
+					ID3DX11EffectPass* pass = Technique->GetPassByIndex(p);
+					D3DX11_PASS_SHADER_DESC pass_desc;
+
+					if (pass->GetVertexShaderDesc(&pass_desc) >= 0)
+					{
+						unsigned int e = 0;
+						D3D11_SIGNATURE_PARAMETER_DESC pdesc;
+						while (pass_desc.pShaderVariable[pass_desc.ShaderIndex].GetInputSignatureElementDesc(pass_desc.ShaderIndex, e, &pdesc) >= 0)
+						{
+							if (tt_stricmp(pdesc.SemanticName, "TEXCOORD") == 0)
+							{
+								int ccount = pdesc.SemanticIndex + 1;
+
+								if (count < ccount)
+								{
+									count = ccount;
+								}
+							}
+
+							e++;
+						}
+					}
+
+				}
+
+				int c = 8;
+
+				if (count <= 8)
+				{
+					c = count;
+				}
+
+				*fvf |= (c & 0xF) << 8;
+			}
+#endif
 
 			void InitFromFXShaderMaterial(Mtl* mtl, IDxMaterial2* dxmtl)
 			{
@@ -3470,6 +3607,8 @@ namespace W3D::MaxTools
 					}
 				}
 
+//#ifdef W3X
+#if 1
 				LPD3DXEFFECT ppEffect = nullptr;
 				D3DXMACRO pDefines[3];
 				pDefines[0].Name = "_WW3D_";
@@ -3478,6 +3617,7 @@ namespace W3D::MaxTools
 				pDefines[1].Definition = "1";
 				pDefines[2].Name = nullptr;
 				pDefines[2].Definition = nullptr;
+#endif
 				FILE* f = _wfopen(path, L"r");
 
 				if (!f)
@@ -3518,6 +3658,8 @@ namespace W3D::MaxTools
 				}
 
 				fclose(f);
+//#ifdef W3X
+#if 1
 				LPD3DXBUFFER ppCompilationErrors = nullptr;
 				LPDIRECT3DDEVICE9 device = nullptr;
 				ViewExp& view = GetCOREInterface()->GetActiveViewExp();
@@ -3559,6 +3701,50 @@ namespace W3D::MaxTools
 				{
 					ppCompilationErrors->Release();
 				}
+#else
+				D3D_FEATURE_LEVEL feature_levels[] = {
+					D3D_FEATURE_LEVEL_11_0,
+				};
+
+				ID3D11Device* device;
+				HRESULT res = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, feature_levels, ARRAYSIZE(feature_levels), D3D11_SDK_VERSION, &device, nullptr, nullptr);
+				
+				if (res < 0 || !device)
+				{
+					LogDataDialogClass::WriteLogWindow(L"Could not compile FX shader material \"%s\".\n", path.ToBSTR());
+					throw ErrorClass(L"Could not compile FX shader material \"%s\".", path.ToBSTR());
+				}
+
+				D3D_SHADER_MACRO pDefines[9];
+				pDefines[0].Name = "_3DSMAX_";
+				pDefines[0].Definition = "0";
+				pDefines[1].Name = "_MAX_";
+				pDefines[1].Definition = "0";
+				pDefines[2].Name = "MAX";
+				pDefines[2].Definition = "0";
+				pDefines[3].Name = "3DSMAX";
+				pDefines[3].Definition = "0";
+				pDefines[4].Name = "NVDST_SUPPORTED";
+				pDefines[4].Definition = "1\\\n";
+				pDefines[5].Name = "FETCH4_SUPPORTED";
+				pDefines[5].Definition = "0\\\n";
+				pDefines[6].Name = "MAX_VERSION_MAJOR";
+				std::string major = std::to_string(MAX_VERSION_MAJOR);
+				pDefines[6].Definition = major.c_str();
+				pDefines[7].Name = "MAX_VERSION_MINOR";
+				std::string minor = std::to_string(MAX_VERSION_MINOR);
+				pDefines[7].Definition = major.c_str();
+				pDefines[8].Name = 0;
+				pDefines[8].Definition = nullptr;
+				ID3DX11Effect* ppEffect;
+				res = D3DX11CompileEffectFromFile(path, pDefines, D3D_COMPILE_STANDARD_FILE_INCLUDE, 0, 0, device, &ppEffect, nullptr);
+
+				if (res < 0 || !ppEffect)
+				{
+					LogDataDialogClass::WriteLogWindow(L"Could not compile FX shader material \"%s\".\n", path.ToBSTR());
+					throw ErrorClass(L"Could not compile FX shader material \"%s\".", path.ToBSTR());
+				}
+#endif
 
 #ifdef W3X
 				D3DXEFFECT_DESC desc;
@@ -3588,14 +3774,25 @@ namespace W3D::MaxTools
 				{
 					LogDataDialogClass::WriteLogWindow(L"\nWARNING: The selected shader technique index is out of range (%d, max allowed %d). Resetting it to first technique. To correct it, please reselect the technique.\n\n", ShaderHeader.technique, technique - 1);
 					ShaderHeader.technique = newtechnique;
-				}
+			}
 #endif
 				unsigned int flags;
 
+//#ifdef W3X
+#if 1
 				if (ppEffect)
 				{
 					GetFVFFromShader(ppEffect, ppEffect->GetTechnique(ShaderHeader.technique), &flags, &Tangents);
 				}
+#else
+				;
+				Tangents = true;
+
+				if (ppEffect)
+				{
+					GetFVFFromShaderDX11(ppEffect->GetTechniqueByIndex(ShaderHeader.technique), &flags);
+				}
+#endif
 
 				int uv = (flags >> 8) & 0xF;
 
@@ -3629,6 +3826,8 @@ namespace W3D::MaxTools
 					const char* semantic = nullptr;
 					D3DXHANDLE parameter = nullptr;
 
+//#ifdef W3X
+#if 1
 					if (ppEffect)
 					{
 						StringClass str = name;
@@ -3653,6 +3852,7 @@ namespace W3D::MaxTools
 #endif
 						}
 					}
+#endif
 
 					if (type == TYPE_BITMAP)
 					{
@@ -3663,7 +3863,7 @@ namespace W3D::MaxTools
 						{
 							LogDataDialogClass::WriteLogWindow(L"Invalid texture name \"none\". Please check the shader material.");
 							throw ErrorClass(L"Invalid texture name \"none\". Please check the shader material.");
-						}
+					}
 #endif
 
 						param.Reset();
@@ -3684,7 +3884,7 @@ namespace W3D::MaxTools
 
 						param.SetTexture(buf);
 #endif
-						* params++ = param;
+						*params++ = param;
 					}
 					else
 					{
@@ -3704,7 +3904,7 @@ namespace W3D::MaxTools
 						switch (type)
 						{
 						case TYPE_INT:
-							if (def.ctrl_type == TYPE_INTLISTBOX || semantic && !_stricmp(semantic, "DIRECTION"))
+							if (def.ctrl_type == TYPE_INTLISTBOX || semantic && !tt_stricmp(semantic, "DIRECTION"))
 							{
 								continue;
 							}
@@ -3794,7 +3994,7 @@ namespace W3D::MaxTools
 						}
 						}
 
-						if (type == TYPE_FRGBA && (!semantic || !_stricmp(semantic, "LIGHTCOLOR")))
+						if (type == TYPE_FRGBA && (!semantic || !tt_stricmp(semantic, "LIGHTCOLOR")))
 						{
 							param.Reset();
 							param.SetName(name);
@@ -3816,6 +4016,15 @@ namespace W3D::MaxTools
 					ppEffect->Release();
 					ppEffect = nullptr;
 				}
+
+//#ifndef W3X
+#if 0
+				if (device)
+				{
+					device->Release();
+					device = nullptr;
+				}
+#endif
 			}
 
 			void InitFromMaxMaterial(Mtl* mtl)
@@ -4403,8 +4612,9 @@ namespace W3D::MaxTools
 			Vector3 Normals[2];
 			int SmGroup;
 			int Id;
-			int BoneIndexes[2];
-			int BoneWeights[2];
+			int BoneIndexes[4];
+			int BoneWeights[4];
+			int BoneCount;
 			int MaterialRemapIndex;
 			int MaxVertColIndex;
 			Vector2 TexCoord[16][2];
@@ -4456,10 +4666,12 @@ namespace W3D::MaxTools
 					TexCoord[i + 12][1] = Vector2(0, 0);
 				}
 
-				BoneIndexes[0] = 0;
-				BoneIndexes[1] = 0;
-				BoneWeights[0] = 100;
-				BoneWeights[1] = 0;
+				for (int i = 0; i < 4; ++i)
+				{
+					BoneIndexes[i] = 0;
+					BoneWeights[i] = (i == 0) ? 100 : 0;
+				}
+				BoneCount = 0;
 				Attribute0 = 0;
 				Attribute1 = 0;
 				UniqueIndex = 0;
@@ -4579,13 +4791,14 @@ namespace W3D::MaxTools
 		bool Verify_Face_Normals();
 		void Compute_Vertex_Normals();
 		void Compute_Tangents_Binormals();
+		void Compute_MikkTSpace_Tangents_Binormals();
 		void Strip_Optimize_Mesh();
 		void Grow_Face_Array();
 		void Sort_Vertices();
 		void Add_Face(FaceClass* face);
 		void Remove_Degenerate_Faces();
-		void Optimize_Mesh(bool keepnormals);
-		void Build_Mesh(bool keepnormals);
+		void Optimize_Mesh(bool keepnormals, bool mikktspace);
+		void Build_Mesh(bool keepnormals, bool mikktspace);
 		void Set_World_Info(WorldInfoClass* info) { WorldInfo = info; }
 		int Get_Pass_Count() { return PassCount; }
 		int Get_Vertex_Count() { return VertCount; }
@@ -4608,7 +4821,7 @@ namespace W3D::MaxTools
 
 	void MeshBuilderClass::Compute_Mesh_Stats()
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Compute_Mesh_Stats");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Compute_Mesh_Stats");
 		Stats.Reset();
 		int VertexMaterialIndex[4];
 		int ShaderIndex[4];
@@ -4924,7 +5137,7 @@ namespace W3D::MaxTools
 
 	void MeshBuilderClass::Compute_Face_Normals()
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Compute_Face_Normals");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Compute_Face_Normals");
 
 		for (int i = 0; i < FaceCount; i++)
 		{
@@ -4934,7 +5147,7 @@ namespace W3D::MaxTools
 
 	bool MeshBuilderClass::Verify_Face_Normals()
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Verify_Face_Normals");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Verify_Face_Normals");
 		bool b = true;
 
 		for (int i = 0; i < FaceCount; i++)
@@ -4958,7 +5171,7 @@ namespace W3D::MaxTools
 
 	void MeshBuilderClass::Compute_Vertex_Normals()
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Compute_Vertex_Normals");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Compute_Vertex_Normals");
 
 		for (int i = 0; i < VertCount; i++)
 		{
@@ -4998,7 +5211,7 @@ namespace W3D::MaxTools
 
 	void MeshBuilderClass::Compute_Tangents_Binormals()
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Compute_Tangents_Binormals");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Compute_Tangents_Binormals");
 
 		for (int i = 0; i < VertCount; i++)
 		{
@@ -5093,9 +5306,146 @@ namespace W3D::MaxTools
 		}
 	}
 
+	void MeshBuilderClass::Compute_MikkTSpace_Tangents_Binormals()
+	{
+		for (int i = 0; i < VertCount; i++)
+		{
+			Vertexes[i].Tangent = Vector3(0, 0, 0);
+			Vertexes[i].Binormal = Vector3(0, 0, 0);
+		}
+		for (int i = 0; i < FaceCount; i++)
+		{
+			VertClass& vertClass1 = Vertexes[Faces[i].VertIdx[0]];
+			VertClass& vertClass2 = Vertexes[Faces[i].VertIdx[1]];
+			VertClass& vertClass3 = Vertexes[Faces[i].VertIdx[2]];
+
+			Vector3& v1 = vertClass1.Vertexes[0];
+			Vector3& v2 = vertClass2.Vertexes[0];
+			Vector3& v3 = vertClass3.Vertexes[0];
+
+			Vector2& w1 = vertClass1.TexCoord[0][0];
+			Vector2& w2 = vertClass2.TexCoord[0][0];
+			Vector2& w3 = vertClass3.TexCoord[0][0];
+
+			float x1 = v2.X - v1.X;
+			float x2 = v3.X - v1.X;
+			float y1 = v2.Y - v1.Y;
+			float y2 = v3.Y - v1.Y;
+			float z1 = v2.Z - v1.Z;
+			float z2 = v3.Z - v1.Z;
+
+			float s1 = w2.X - w1.X;
+			float s2 = w3.X - w1.X;
+			float t1 = w2.Y - w1.Y;
+			float t2 = w3.Y - w1.Y;
+
+			float r = 1.0F / (s1 * t2 - s2 * t1);
+
+			Vector3 tangent((s1 * x2 - s2 * x1) * r, (s1 * y2 - s2 * y1) * r, (s1 * z2 - s2 * z1) * r);
+			Vector3 bitangent((t2 * x1 - t1 * x2) * r, (t2 * y1 - t1 * y2) * r, (t2 * z1 - t1 * z2) * r);
+
+			vertClass1.Tangent += tangent;
+			vertClass2.Tangent += tangent;
+			vertClass3.Tangent += tangent;
+
+			vertClass1.Binormal += bitangent;
+			vertClass2.Binormal += bitangent;
+			vertClass3.Binormal += bitangent;
+
+			/*Vector3 a1;
+			Vector3 a2;
+			a1.X = v1.Vertexes[0].X - v0.Vertexes[0].X;
+			a1.Y = v1.TexCoord[0][0].X - v0.TexCoord[0][0].X;
+			a1.Z = v1.TexCoord[0][0].Y - v0.TexCoord[0][0].Y;
+			a2.X = v2.Vertexes[0].X - v0.Vertexes[0].X;
+			a2.Y = v2.TexCoord[0][0].X - v0.TexCoord[0][0].X;
+			a2.Z = v2.TexCoord[0][0].Y - v0.TexCoord[0][0].Y;
+			Vector3 a3;
+			Vector3::Cross_Product(a1, a2, &a3);
+			if (fabs(a3.X) > 1.0e-12)
+			{
+				float f10 = 1.0f / a3.X;
+				float f11 = a3.Z * f10;
+				v0.Tangent.X = v0.Tangent.X - f11;
+				float f12 = a3.Y * f10;
+				v0.Binormal.X = v0.Binormal.X - f12;
+				v1.Tangent.X = v1.Tangent.X - f11;
+				v1.Binormal.X = v1.Binormal.X - f12;
+				v2.Tangent.X = v2.Tangent.X - f11;
+				v2.Binormal.X = v2.Binormal.X - f12;
+			}
+			a1.X = v1.Vertexes[0].Y - v0.Vertexes[0].Y;
+			a1.Y = v1.TexCoord[0][0].X - v0.TexCoord[0][0].X;
+			a1.Z = v1.TexCoord[0][0].Y - v0.TexCoord[0][0].Y;
+			a2.X = v2.Vertexes[0].Y - v0.Vertexes[0].Y;
+			a2.Y = v2.TexCoord[0][0].X - v0.TexCoord[0][0].X;
+			a2.Z = v2.TexCoord[0][0].Y - v0.TexCoord[0][0].Y;
+			Vector3::Cross_Product(a1, a2, &a3);
+			if (fabs(a3.X) > 1.0e-12)
+			{
+				float f10 = 1.0f / a3.X;
+				float f11 = f10 * a3.Z;
+				v0.Tangent.Y = v0.Tangent.Y - f11;
+				float f12 = f10 * a3.Y;
+				v0.Binormal.Y = v0.Binormal.Y - f12;
+				v1.Tangent.Y = v1.Tangent.Y - f11;
+				v1.Binormal.Y = v1.Binormal.Y - f12;
+				v2.Tangent.Y = v2.Tangent.Y - f11;
+				v2.Binormal.Y = v2.Binormal.Y - f12;
+			}
+			a1.X = v1.Vertexes[0].Z - v0.Vertexes[0].Z;
+			a1.Y = v1.TexCoord[0][0].X - v0.TexCoord[0][0].X;
+			a1.Z = v1.TexCoord[0][0].Y - v0.TexCoord[0][0].Y;
+			a2.X = v2.Vertexes[0].Z - v0.Vertexes[0].Z;
+			a2.Y = v2.TexCoord[0][0].X - v0.TexCoord[0][0].X;
+			a2.Z = v2.TexCoord[0][0].Y - v0.TexCoord[0][0].Y;
+			Vector3::Cross_Product(a1, a2, &a3);
+			if (fabs(a3.X) > 1.0e-12)
+			{
+				float f10 = 1.0f / a3.X;
+				float f11 = f10 * a3.Z;
+				v0.Tangent.Z = v0.Tangent.Z - f11;
+				float f12 = f10 * a3.Y;
+				v0.Binormal.Z = v0.Binormal.Z - f12;
+				v1.Tangent.Z = v1.Tangent.Z - f11;
+				v1.Binormal.Z = v1.Binormal.Z - f12;
+				v2.Tangent.Z = v2.Tangent.Z - f11;
+				v2.Binormal.Z = v2.Binormal.Z - f12;
+			}*/
+		}
+		// Normalize and finalize tangents and binormals
+		for (int i = 0; i < VertCount; i++)
+		{
+			Vector3 n = Vertexes[i].Normals[0];
+			Vector3 t = Vertexes[i].Tangent;
+			Vector3 b = Vertexes[i].Binormal;
+
+			// Gram-Schmidt orthogonalize the tangent against the normal
+			Vector3 Gram = (t - n * Vector3::Dot_Product(n, t));
+			Gram.Normalize();
+
+			t = Gram;
+
+			// Calculate the cross product to determine the binormal
+			Vector3 crossProduct;
+			Vector3::Cross_Product(t, b, &crossProduct);
+			crossProduct.Normalize();
+
+			// Calculate the handedness (flip the binormal if needed)
+			if (Vector3::Dot_Product(crossProduct, n) < 0.0f)
+			{
+				t = -t;  // Negate the tangent to adjust for handedness
+			}
+
+			Vertexes[i].Tangent = t;
+			Vertexes[i].Binormal = crossProduct;
+		}
+	}
+
+
 	void MeshBuilderClass::Strip_Optimize_Mesh()
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Strip_Optimize_Mesh");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Strip_Optimize_Mesh");
 		WingedEdgeStruct* pEdgeInfos = new WingedEdgeStruct[FaceCount * 3];
 		WingedEdgeStruct* edgeHashList[512];
 
@@ -5454,44 +5804,33 @@ namespace W3D::MaxTools
 		MeshBuilderClass::VertClass* v1 = (MeshBuilderClass::VertClass*)a;
 		MeshBuilderClass::VertClass* v2 = (MeshBuilderClass::VertClass*)b;
 
-		if (v1->BoneIndexes[0] < v2->BoneIndexes[0])
+		const int maxInfluences = std::max(v1->BoneCount, v2->BoneCount);
+		for (int influence = 0; influence < maxInfluences; ++influence)
 		{
-			return -1;
+			const int boneIndex1 = (influence < v1->BoneCount) ? v1->BoneIndexes[influence] : 0;
+			const int boneIndex2 = (influence < v2->BoneCount) ? v2->BoneIndexes[influence] : 0;
+			if (boneIndex1 < boneIndex2)
+			{
+				return -1;
+			}
+			if (boneIndex1 > boneIndex2)
+			{
+				return 1;
+			}
 		}
 
-		if (v1->BoneIndexes[0] > v2->BoneIndexes[0])
+		for (int influence = 0; influence < maxInfluences; ++influence)
 		{
-			return 1;
-		}
-
-		if (v1->BoneIndexes[1] < v2->BoneIndexes[1])
-		{
-			return -1;
-		}
-
-		if (v1->BoneIndexes[1] > v2->BoneIndexes[1])
-		{
-			return 1;
-		}
-
-		if (v1->BoneWeights[0] < v2->BoneWeights[0])
-		{
-			return -1;
-		}
-
-		if (v1->BoneWeights[0] > v2->BoneWeights[0])
-		{
-			return 1;
-		}
-
-		if (v1->BoneWeights[1] < v2->BoneWeights[1])
-		{
-			return -1;
-		}
-
-		if (v1->BoneWeights[1] > v2->BoneWeights[1])
-		{
-			return 1;
+			const int weight1 = (influence < v1->BoneCount) ? v1->BoneWeights[influence] : 0;
+			const int weight2 = (influence < v2->BoneCount) ? v2->BoneWeights[influence] : 0;
+			if (weight1 < weight2)
+			{
+				return -1;
+			}
+			if (weight1 > weight2)
+			{
+				return 1;
+			}
 		}
 
 		if (v1->MaterialRemapIndex < v2->MaterialRemapIndex)
@@ -5504,7 +5843,7 @@ namespace W3D::MaxTools
 
 	void MeshBuilderClass::Sort_Vertices()
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Sort_Vertices");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Sort_Vertices");
 		qsort(Vertexes, VertCount, sizeof(VertClass), VertexSortFunc);
 		int* indexes = new int[VertCount];
 
@@ -5552,7 +5891,7 @@ namespace W3D::MaxTools
 	template <class T> class UniqueArrayClass
 	{
 	public:
-		class HashItem : public NoEqualsClass<HashItem>
+		class HashItem
 		{
 		public:
 			T Item;
@@ -5567,9 +5906,8 @@ namespace W3D::MaxTools
 		int* Indexes;
 		HasherClass* Hasher;
 
-		UniqueArrayClass(int size, int growth, HasherClass* hasher) : Vector(size, nullptr), Hasher(hasher)
+		UniqueArrayClass(int size, HasherClass* hasher) : Vector(size), Hasher(hasher)
 		{
-			Vector.Set_Growth_Step(growth);
 			Size = 1 << hasher->GetSize();
 			Indexes = new int[Size];
 			for (int i = 0; i < Size; i++)
@@ -5583,6 +5921,7 @@ namespace W3D::MaxTools
 			if (Indexes)
 			{
 				delete[] Indexes;
+				Indexes = nullptr;
 			}
 		}
 
@@ -5657,9 +5996,9 @@ namespace W3D::MaxTools
 	void MeshBuilderClass::Remove_Degenerate_Faces()
 	{
 		// TODO(Mara): This is weirdly slow, try a set or improve the hash function, make it non virtual, make it store pointers?
-		TT_PROFILER_SCOPE("MeshBuilderClass::Remove_Degenerate_Faces");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Remove_Degenerate_Faces");
 		FaceHasherClass hasher;
-		UniqueArrayClass<MeshBuilderClass::FaceClass> faces(FaceCount, FaceCount / 4, &hasher);
+		UniqueArrayClass<MeshBuilderClass::FaceClass> faces(FaceCount, &hasher);
 
 		for (int i = 0; i < FaceCount; i++)
 		{
@@ -5714,7 +6053,7 @@ namespace W3D::MaxTools
 
 		void UpdateSmoothingGroup()
 		{
-			TT_PROFILER_SCOPE("MeshOptimizerClass::UpdateSmoothingGroup");
+			TT_PROFILER_SCOPE_N("MeshOptimizerClass::UpdateSmoothingGroup");
 
 			for (int i = 0; i < VertexCount; i++)
 			{
@@ -5950,15 +6289,15 @@ namespace W3D::MaxTools
 		{FaceSort7, FaceSort8}
 	};
 
-	void MeshBuilderClass::Optimize_Mesh(bool keepnormals)
+	void MeshBuilderClass::Optimize_Mesh(bool keepnormals, bool mikktspace)
 	{
-		TT_PROFILER_SCOPE("MeshBuilderClass::Optimize_Mesh");
+		TT_PROFILER_SCOPE_N("MeshBuilderClass::Optimize_Mesh");
 		MeshOptimizerClass optimizer(3 * FaceCount, !keepnormals);
 		Vector3 p1 = Faces[0].Verts[0].Vertexes[0];
 		Vector3 p2 = Faces[0].Verts[0].Vertexes[0];
 
 		{
-			TT_PROFILER_SCOPE("Compute Bounding Box");
+			TT_PROFILER_SCOPE_N("Compute Bounding Box");
 
 			for (int i = 0; i < FaceCount; i++)
 			{
@@ -5973,7 +6312,7 @@ namespace W3D::MaxTools
 		}
 
 		{
-			TT_PROFILER_SCOPE("Add Vertices");
+			TT_PROFILER_SCOPE_N("Add Vertices");
 
 			for (int i = 0; i < FaceCount; i++)
 			{
@@ -6001,7 +6340,12 @@ namespace W3D::MaxTools
 			Compute_Vertex_Normals();
 		}
 
-		Compute_Tangents_Binormals();
+		if (mikktspace) {
+			Compute_MikkTSpace_Tangents_Binormals();
+		}
+		else {
+			Compute_Tangents_Binormals();
+		}
 		Compute_Mesh_Stats();
 		Stats.UVSplitCount = optimizer.GetUVSplitCount();
 		qsort(Faces, FaceCount, sizeof(FaceClass), FaceSortFuncs[PolyOrderPass][PolyOrderStage]);
@@ -6010,11 +6354,11 @@ namespace W3D::MaxTools
 		Verify_Face_Normals();
 	}
 
-	void MeshBuilderClass::Build_Mesh(bool keepnormals)
+	void MeshBuilderClass::Build_Mesh(bool keepnormals, bool mikktspace)
 	{
 		State = STATE_MESH_PROCESSED;
 		FaceCount = CurFace;
-		Optimize_Mesh(keepnormals);
+		Optimize_Mesh(keepnormals, mikktspace);
 	}
 
 	float GetMatrix3Determinant(const Matrix3& m)
@@ -6169,23 +6513,26 @@ namespace W3D::MaxTools
 		const char* MeshUserText;
 		bool IsDetermenentNegative;
 		W3dVertInfStruct* VertexInfluences;
+		W3dVertInf3WStruct* VertexInfluencesExtended;
 		int* MaterialIndex;
 		bool HasSmoothSkin;
+		bool HasSupersmoothSkin;
+		bool MikkTSpace;
 #ifdef W3X
 		std::vector<StringClass>* Includes;
 #endif
 	public:
 #ifndef W3X
 		MeshSave(const char* meshname, const char* containername, INode* node, Mesh* mesh, Matrix3* transform, W3DAppDataChunk* exportflags, W3DExportSettings* exportdata, HierarchySave* hierarchy, TimeValue time, MaxWorldInfoClass* info) :
-			ExportData(exportdata), Node(node), ExportFlags(exportflags), MeshBuilder(1, 255, 64), Time(time), Transform(*transform), Hierarchy(hierarchy), MeshUserText(nullptr), VertexInfluences(nullptr), MaterialIndex(nullptr), HasSmoothSkin(false)
+			ExportData(exportdata), Node(node), ExportFlags(exportflags), MeshBuilder(1, 255, 64), Time(time), Transform(*transform), Hierarchy(hierarchy), MeshUserText(nullptr), VertexInfluences(nullptr), VertexInfluencesExtended(nullptr), MaterialIndex(nullptr), HasSmoothSkin(false), HasSupersmoothSkin(false), MikkTSpace(false)
 #else
 		MeshSave(const char* meshname, const char* containername, INode* node, Mesh* mesh, Matrix3* transform, W3DAppDataChunk* exportflags, W3DExportSettings* exportdata, std::vector<StringClass>* includes, HierarchySave* hierarchy, TimeValue time, MaxWorldInfoClass* info) :
-			Node(node), ExportFlags(exportflags), ExportData(exportdata), MeshBuilder(1, 255, 64), Time(time), Transform(*transform), Hierarchy(hierarchy), MeshUserText(nullptr), VertexInfluences(nullptr), MaterialIndex(nullptr), HasSmoothSkin(false), Includes(includes)
+			Node(node), ExportFlags(exportflags), ExportData(exportdata), MeshBuilder(1, 255, 64), Time(time), Transform(*transform), Hierarchy(hierarchy), MeshUserText(nullptr), VertexInfluences(nullptr), VertexInfluencesExtended(nullptr), MaterialIndex(nullptr), HasSmoothSkin(false), HasSupersmoothSkin(false), Includes(includes), MikkTSpace(false)
 #endif
 		{
-			TT_PROFILER_SCOPE("MeshSave::MeshSave");
-			TT_PROFILER_TAG("Container", containername);
-			TT_PROFILER_TAG("Name", meshname);
+			TT_PROFILER_SCOPE_NAMED_N(profileMeshSave, "MeshSave::MeshSave");
+			TT_PROFILER_SCOPE_TEXT_AUTO(profileMeshSave, meshname);
+
 			Mesh m(*mesh);
 			Mtl* mtl = node->GetMtl();
 			DWORD WireColor = node->GetWireColor();
@@ -6237,7 +6584,7 @@ namespace W3D::MaxTools
 			}
 
 			MeshBuilder.Set_World_Info(info);
-			BuildMesh(&m, mtl);
+			BuildMesh(&m, mtl, MikkTSpace);
 			Header.NumVertices = MeshBuilder.Get_Vertex_Count();
 			Header.NumTris = MeshBuilder.Get_Face_Count();
 			ComputeBoundingVolumes();
@@ -6271,6 +6618,12 @@ namespace W3D::MaxTools
 				VertexInfluences = nullptr;
 			}
 
+			if (VertexInfluencesExtended)
+			{
+				delete[] VertexInfluencesExtended;
+				VertexInfluencesExtended = nullptr;
+			}
+
 			if (MaterialIndex)
 			{
 				delete[] MaterialIndex;
@@ -6280,6 +6633,11 @@ namespace W3D::MaxTools
 
 		void ComputeSkinOptimization()
 		{
+			if (HasSupersmoothSkin || !VertexInfluences)
+			{
+				return;
+			}
+
 			int count = MeshBuilder.Get_Vertex_Count();
 			int x = 0;
 			int i = 0;
@@ -6363,7 +6721,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveVertices");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveVertices");
 
 			for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
 			{
@@ -6420,7 +6778,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveVertexNormals");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveVertexNormals");
 
 			for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
 			{
@@ -6498,7 +6856,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveTangentsBinormals");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveTangentsBinormals");
 
 			for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
 			{
@@ -6538,16 +6896,36 @@ namespace W3D::MaxTools
 
 		bool SaveVertexInfluences(ChunkSaveClass& csave)
 		{
-			if ((Header.Attributes & W3D_MESH_FLAG_GEOMETRY_TYPE_MASK) != W3D_MESH_FLAG_GEOMETRY_TYPE_SKIN || !(Header.VertexChannels & W3D_VERTEX_CHANNEL_BONEID) || !VertexInfluences)
+			if ((Header.Attributes & W3D_MESH_FLAG_GEOMETRY_TYPE_MASK) != W3D_MESH_FLAG_GEOMETRY_TYPE_SKIN || !(Header.VertexChannels & W3D_VERTEX_CHANNEL_BONEID) || (!VertexInfluences && !VertexInfluencesExtended))
 			{
 				return false;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveVertexInfluences");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveVertexInfluences");
 
-			if (csave.Begin_Chunk(W3DChunkType::VERTEX_INFLUENCES))
+			const bool supersmooth = (Header.VertexChannels & W3D_VERTEX_CHANNEL_SUPERSMOOTHSKIN) != 0;
+			const int vertexCount = MeshBuilder.Get_Vertex_Count();
+
+			if (supersmooth)
 			{
-				int size = MeshBuilder.Get_Vertex_Count() * sizeof(W3dVertInfStruct);
+				if (!VertexInfluencesExtended)
+				{
+					return false;
+				}
+
+				if (csave.Begin_Chunk(W3DChunkType::VERTEX_INFLUENCES_EXTENDED))
+				{
+					const int size = vertexCount * static_cast<int>(sizeof(W3dVertInf3WStruct));
+
+					if (csave.Write(VertexInfluencesExtended, size) == size)
+					{
+						return !csave.End_Chunk();
+					}
+				}
+			}
+			else if (VertexInfluences && csave.Begin_Chunk(W3DChunkType::VERTEX_INFLUENCES))
+			{
+				const int size = vertexCount * static_cast<int>(sizeof(W3dVertInfStruct));
 
 				if (csave.Write(VertexInfluences, size) == size)
 				{
@@ -6565,7 +6943,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveTriangles");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveTriangles");
 
 			for (int i = 0; i < MeshBuilder.Get_Face_Count(); i++)
 			{
@@ -6601,7 +6979,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveVertexShadeIndices");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveVertexShadeIndices");
 
 			for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
 			{
@@ -6755,7 +7133,7 @@ namespace W3D::MaxTools
 
 			if (MeshBuilder.Get_Mesh_Stats().HasPerVertexMaterial[pass])
 			{
-				TT_PROFILER_SCOPE("MeshSave::SaveMaterialIDs");
+				TT_PROFILER_SCOPE_N("MeshSave::SaveMaterialIDs");
 
 				for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
 				{
@@ -6789,7 +7167,7 @@ namespace W3D::MaxTools
 
 			if (MeshBuilder.Get_Mesh_Stats().HasPerPolyShader[pass])
 			{
-				TT_PROFILER_SCOPE("MeshSave::SaveShaderIDs");
+				TT_PROFILER_SCOPE_N("MeshSave::SaveShaderIDs");
 
 				for (int i = 0; i < MeshBuilder.Get_Face_Count(); i++)
 				{
@@ -6823,7 +7201,7 @@ namespace W3D::MaxTools
 
 			if (MeshBuilder.Get_Mesh_Stats().HasPerPolyFXShader[pass])
 			{
-				TT_PROFILER_SCOPE("MeshSave::SaveFXShaderIDs");
+				TT_PROFILER_SCOPE_N("MeshSave::SaveFXShaderIDs");
 
 				for (int i = 0; i < MeshBuilder.Get_Face_Count(); i++)
 				{
@@ -6855,7 +7233,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveDCG");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveDCG");
 
 			for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
 			{
@@ -6883,7 +7261,7 @@ namespace W3D::MaxTools
 
 			if (MeshBuilder.Get_Mesh_Stats().HasPerPolyTexture[pass][stage])
 			{
-				TT_PROFILER_SCOPE("MeshSave::SaveTextureIDs");
+				TT_PROFILER_SCOPE_N("MeshSave::SaveTextureIDs");
 
 				for (int i = 0; i < MeshBuilder.Get_Face_Count(); i++)
 				{
@@ -6920,7 +7298,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveStageTexcoords");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveStageTexcoords");
 
 			for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
 			{
@@ -6939,7 +7317,7 @@ namespace W3D::MaxTools
 
 		int GenerateAABTree(ChunkSaveClass& csave, bool new_format)
 		{
-			TT_PROFILER_SCOPE("MeshSave::GenerateAABTree");
+			TT_PROFILER_SCOPE_N("MeshSave::GenerateAABTree");
 			int facecount = MeshBuilder.Get_Face_Count();
 
 			if (facecount >= 8 && (Header.Attributes & W3D_MESH_FLAG_GEOMETRY_TYPE_MASK) == W3D_MESH_FLAG_GEOMETRY_TYPE_NORMAL)
@@ -6975,7 +7353,7 @@ namespace W3D::MaxTools
 		{
 			if (material && material->NumSubMtls() > 1)
 			{
-				TT_PROFILER_SCOPE("MeshSave::FindMaterials");
+				TT_PROFILER_SCOPE_N("MeshSave::FindMaterials");
 				int count = material->NumSubMtls();
 				MaterialIndex = new int[count];
 
@@ -7013,7 +7391,7 @@ namespace W3D::MaxTools
 
 		void InitMaterials(Mtl* material, int color)
 		{
-			TT_PROFILER_SCOPE("MeshSave::InitMaterials");
+			TT_PROFILER_SCOPE_N("MeshSave::InitMaterials");
 
 			if (!material)
 			{
@@ -7072,7 +7450,7 @@ namespace W3D::MaxTools
 
 		void ComputeBoundingVolumes()
 		{
-			TT_PROFILER_SCOPE("MeshSave::ComputeBoundingVolumes");
+			TT_PROFILER_SCOPE_N("MeshSave::ComputeBoundingVolumes");
 			Vector3 min;
 			Vector3 max;
 			Vector3 center;
@@ -7093,7 +7471,7 @@ namespace W3D::MaxTools
 
 		void ApplyTransform(Mesh& mesh, Matrix3& tm)
 		{
-			TT_PROFILER_SCOPE("MeshSave::ApplyTransform");
+			TT_PROFILER_SCOPE_N("MeshSave::ApplyTransform");
 
 			for (int i = 0; i < mesh.numVerts; i++)
 			{
@@ -7103,10 +7481,10 @@ namespace W3D::MaxTools
 			mesh.buildNormals();
 		}
 
-		void BuildMesh(Mesh* mesh, Mtl* material)
+		void BuildMesh(Mesh* mesh, Mtl* material, bool MikkTSpace)
 		{
-			TT_PROFILER_SCOPE("MeshSave::BuildMesh");
-			TT_PROFILER_SCOPE_START("Prepare Data");
+			TT_PROFILER_SCOPE_N("MeshSave::BuildMesh");
+			TT_PROFILER_SCOPE_START(prepareDataScope, "Prepare Data");
 			MeshBuilder.Reset(1, mesh->numFaces, mesh->numFaces / 3);
 #ifndef W3X
 			float* AlphaModifierData;
@@ -7159,7 +7537,7 @@ namespace W3D::MaxTools
 			}
 
 			bool keepnormals = enum_has_flags(ExportFlags->GeometryFlags, W3DGeometryFlags::KeepNml) == 0;
-			auto normalspec = mesh->GetSpecifiedNormals();
+			MeshNormalSpec* normalspec = mesh->GetSpecifiedNormals();
 
 			if (!normalspec)
 			{
@@ -7355,49 +7733,178 @@ namespace W3D::MaxTools
 					vert->MaterialRemapIndex = index;
 					vert->Attribute1 = i;
 					vert->Attribute0 = id;
-					vert->BoneIndexes[0] = 0;
-					vert->BoneIndexes[1] = 0;
-					vert->BoneWeights[0] = 100;
-					vert->BoneWeights[1] = 0;
+					vert->BoneCount = 0;
+					for (int influence = 0; influence < 4; ++influence)
+					{
+						vert->BoneIndexes[influence] = 0;
+						vert->BoneWeights[influence] = (influence == 0) ? 100 : 0;
+					}
 
 					if (hasskin)
 					{
-						if (context->GetNumAssignedBones(id) > 2)
+						float influenceWeights[8];
+						int influenceBones[8];
+						int influenceCount = 0;
+						const int assignedBones = context->GetNumAssignedBones(id);
+						for (int k = 0; k < assignedBones && influenceCount < 8; ++k)
 						{
-							MessageBox(nullptr, L"Warning: Vertex is weighted to more than 2 bones", L"Warning", 0);
+							const float weight = context->GetBoneWeight(id, k);
+							if (weight <= 0.0f)
+							{
+								continue;
+							}
+
+							INode* bone = skin->GetBone(context->GetAssignedBone(id, k));
+							if (!bone)
+							{
+								continue;
+							}
+
+							const int boneIndex = Hierarchy->GetBoneIndexForNode(bone);
+							if (boneIndex < 0)
+							{
+								continue;
+							}
+
+							influenceWeights[influenceCount] = weight;
+							influenceBones[influenceCount] = boneIndex;
+							++influenceCount;
 						}
 
-						for (int k = 0; k < 2; k++)
+						if (influenceCount > 0)
 						{
-							if (k < context->GetNumAssignedBones(id))
+							for (int primary = 0; primary < influenceCount - 1; ++primary)
 							{
-								// TODO(Mara): We're getting the bone index from Max to get the bone name to then look up the bone index again...
-								//             We could at least pre-cache the max index -> w3d index mapping.
-								INode* bone = skin->GetBone(context->GetAssignedBone(id, k));
-
-								if (bone)
+								int bestIndex = primary;
+								float bestWeight = influenceWeights[primary];
+								for (int compare = primary + 1; compare < influenceCount; ++compare)
 								{
-									vert->BoneIndexes[k] = Hierarchy->GetBoneIndexForNode(bone);
-									vert->BoneWeights[k] = (int)(context->GetBoneWeight(id, k) * 100);
+									if (influenceWeights[compare] > bestWeight)
+									{
+										bestIndex = compare;
+										bestWeight = influenceWeights[compare];
+									}
+								}
+								if (bestIndex != primary)
+								{
+									const float tmpWeight = influenceWeights[primary];
+									const int tmpBone = influenceBones[primary];
+									influenceWeights[primary] = influenceWeights[bestIndex];
+									influenceBones[primary] = influenceBones[bestIndex];
+									influenceWeights[bestIndex] = tmpWeight;
+									influenceBones[bestIndex] = tmpBone;
 								}
 							}
-						}
 
-#ifndef W3X
-						if (!vert->BoneWeights[0])
-						{
-							vert->BoneWeights[0] = vert->BoneWeights[1];
-							vert->BoneIndexes[0] = vert->BoneIndexes[1];
-							vert->BoneWeights[1] = 0;
-							vert->BoneIndexes[1] = 0;
-
-							if (!vert->BoneWeights[0])
+							int limitedCount = influenceCount;
+							if (limitedCount > 4)
 							{
-								vert->BoneWeights[0] = 100;
-								vert->BoneIndexes[0] = 0;
+								limitedCount = 4;
+							}
+
+							float weightSum = 0.0f;
+							for (int influenceIndex = 0; influenceIndex < limitedCount; ++influenceIndex)
+							{
+								weightSum += influenceWeights[influenceIndex];
+							}
+
+							if (weightSum <= 0.0f)
+							{
+								weightSum = 1.0f;
+							}
+
+							int scaledWeights[4] = {0, 0, 0, 0};
+							int sumScaled = 0;
+							for (int influenceIndex = 0; influenceIndex < limitedCount; ++influenceIndex)
+							{
+								const float normalized = influenceWeights[influenceIndex] / weightSum;
+								int scaled = static_cast<int>(normalized * 100.0f + 0.5f);
+								if (scaled < 0)
+								{
+									scaled = 0;
+								}
+								else if (scaled > 100)
+								{
+									scaled = 100;
+								}
+								scaledWeights[influenceIndex] = scaled;
+								sumScaled += scaled;
+							}
+
+							if (limitedCount > 0)
+							{
+								const int diff = 100 - sumScaled;
+								if (diff != 0)
+								{
+									int adjustIndex = 0;
+									int maxWeight = scaledWeights[0];
+									for (int influenceIndex = 1; influenceIndex < limitedCount; ++influenceIndex)
+									{
+										if (scaledWeights[influenceIndex] > maxWeight)
+										{
+											maxWeight = scaledWeights[influenceIndex];
+											adjustIndex = influenceIndex;
+										}
+									}
+
+									int adjusted = scaledWeights[adjustIndex] + diff;
+									if (adjusted < 0)
+									{
+										adjusted = 0;
+									}
+									else if (adjusted > 100)
+									{
+										adjusted = 100;
+									}
+									scaledWeights[adjustIndex] = adjusted;
+								}
+
+								sumScaled = 0;
+								for (int influenceIndex = 0; influenceIndex < limitedCount; ++influenceIndex)
+								{
+									sumScaled += scaledWeights[influenceIndex];
+								}
+
+								if (sumScaled != 100)
+								{
+									int adjusted = scaledWeights[0] + (100 - sumScaled);
+									if (adjusted < 0)
+									{
+										adjusted = 0;
+									}
+									else if (adjusted > 100)
+									{
+										adjusted = 100;
+									}
+									scaledWeights[0] = adjusted;
+								}
+							}
+
+							for (int influenceIndex = 0; influenceIndex < limitedCount; ++influenceIndex)
+							{
+								vert->BoneIndexes[influenceIndex] = influenceBones[influenceIndex];
+								vert->BoneWeights[influenceIndex] = scaledWeights[influenceIndex];
+							}
+
+							vert->BoneCount = limitedCount;
+							for (int influenceIndex = limitedCount; influenceIndex < 4; ++influenceIndex)
+							{
+								vert->BoneIndexes[influenceIndex] = 0;
+								vert->BoneWeights[influenceIndex] = 0;
 							}
 						}
-#endif
+					}
+
+					if (vert->BoneCount <= 0)
+					{
+						vert->BoneCount = 1;
+						vert->BoneIndexes[0] = 0;
+						vert->BoneWeights[0] = 100;
+						for (int influence = 1; influence < 4; ++influence)
+						{
+							vert->BoneIndexes[influence] = 0;
+							vert->BoneWeights[influence] = 0;
+						}
 					}
 
 					corner++;
@@ -7406,8 +7913,8 @@ namespace W3D::MaxTools
 				MeshBuilder.Add_Face(&face);
 			}
 
-			TT_PROFILER_SCOPE_STOP();
-			MeshBuilder.Build_Mesh(keepnormals);
+			TT_PROFILER_SCOPE_STOP(prepareDataScope);
+			MeshBuilder.Build_Mesh(keepnormals, MikkTSpace);
 			LogDataDialogClass::WriteLogWindow(L" triangle count: %d\n", mesh->numFaces);
 			LogDataDialogClass::WriteLogWindow(L" final vertex count: %d\n", MeshBuilder.Get_Vertex_Count());
 			LogDataDialogClass::WriteLogWindow(L" vertex/triangle ratio: %f\n", (float)MeshBuilder.Get_Vertex_Count() / (float)mesh->numFaces);
@@ -7419,40 +7926,81 @@ namespace W3D::MaxTools
 
 		void CalculateSkinData()
 		{
-			TT_PROFILER_SCOPE("MeshSave::CalculateSkinData");
-			VertexInfluences = new W3dVertInfStruct[MeshBuilder.Get_Vertex_Count()];
-			memset(VertexInfluences, 0, MeshBuilder.Get_Vertex_Count() * sizeof(W3dVertInfStruct));
+			TT_PROFILER_SCOPE_N("MeshSave::CalculateSkinData");
+			const int vertexCount = MeshBuilder.Get_Vertex_Count();
 			Header.VertexChannels |= W3D_VERTEX_CHANNEL_BONEID;
 			HasSmoothSkin = false;
+			HasSupersmoothSkin = false;
 
-			for (int i = 0; i < MeshBuilder.Get_Vertex_Count(); i++)
+			if (VertexInfluences)
+			{
+				delete[] VertexInfluences;
+				VertexInfluences = nullptr;
+			}
+
+			if (VertexInfluencesExtended)
+			{
+				delete[] VertexInfluencesExtended;
+				VertexInfluencesExtended = nullptr;
+			}
+
+			for (int i = 0; i < vertexCount; ++i)
 			{
 				MeshBuilderClass::VertClass& vert = MeshBuilder.Get_Vertex(i);
-
-				if (!vert.BoneIndexes[0])
+				if (vert.BoneCount < 1)
 				{
-					VertexInfluences[i].BoneIdx[0] = 0;
-					VertexInfluences[i].BoneIdx[1] = 0;
-					VertexInfluences[i].Weight[0] = 100;
-					VertexInfluences[i].Weight[1] = 0;
+					vert.BoneCount = 1;
 				}
-				else
+				else if (vert.BoneCount > 4)
 				{
-					int count = 1;
+					vert.BoneCount = 4;
+				}
+				if (vert.BoneCount > 1)
+				{
+					HasSmoothSkin = true;
+				}
+				if (vert.BoneCount > 2)
+				{
+					HasSupersmoothSkin = true;
+				}
+				for (int influence = vert.BoneCount; influence < 4; ++influence)
+				{
+					vert.BoneIndexes[influence] = 0;
+					vert.BoneWeights[influence] = 0;
+				}
+			}
 
-					if (vert.BoneIndexes[1])
-					{
-						HasSmoothSkin = true;
-						Header.VertexChannels |= W3D_VERTEX_CHANNEL_SMOOTHSKIN;
-						vert.Vertexes[1] = vert.Vertexes[0];
-						vert.Normals[1] = vert.Normals[0];
-						count = 2;
-					}
+			if (HasSmoothSkin)
+			{
+				Header.VertexChannels |= W3D_VERTEX_CHANNEL_SMOOTHSKIN;
+			}
+			if (HasSupersmoothSkin)
+			{
+				Header.VertexChannels |= W3D_VERTEX_CHANNEL_SUPERSMOOTHSKIN;
+				VertexInfluencesExtended = new W3dVertInf3WStruct[vertexCount];
+			}
+			else
+			{
+				VertexInfluences = new W3dVertInfStruct[vertexCount];
+				memset(VertexInfluences, 0, vertexCount * sizeof(W3dVertInfStruct));
+			}
 
+			for (int i = 0; i < vertexCount; ++i)
+			{
+				MeshBuilderClass::VertClass& vert = MeshBuilder.Get_Vertex(i);
+				int boneCount = vert.BoneCount;
+				if (boneCount < 1) boneCount = 1;
+
+				int preprocessCount = boneCount;
+				if (preprocessCount > 2)
+				{
+					preprocessCount = 2;
+				}
+				if (preprocessCount > 0)
+				{
 					Matrix3 m[2];
 					Matrix3D tm[2];
-
-					for (int j = 0; j < count; j++)
+					for (int j = 0; j < preprocessCount; ++j)
 					{
 						Hierarchy->GetFinalTransform(m[j], vert.BoneIndexes[j]);
 						MakeMatrix3D(m[j], tm[j]);
@@ -7465,20 +8013,80 @@ namespace W3D::MaxTools
 						vert.Normals[j] = n;
 					}
 
-					if (count == 1)
+					if (preprocessCount == 1)
 					{
 						vert.Vertexes[1] = vert.Vertexes[0];
 						vert.Normals[1] = vert.Normals[0];
 					}
+				}
+				else
+				{
+					vert.Vertexes[1] = vert.Vertexes[0];
+					vert.Normals[1] = vert.Normals[0];
+				}
 
-					VertexInfluences[i].BoneIdx[0] = vert.BoneIndexes[0];
-					VertexInfluences[i].BoneIdx[1] = vert.BoneIndexes[1];
-					VertexInfluences[i].Weight[0] = vert.BoneWeights[0];
-					VertexInfluences[i].Weight[1] = vert.BoneWeights[1];
+				if (VertexInfluencesExtended)
+				{
+					W3dVertInf3WStruct& dst = VertexInfluencesExtended[i];
+					for (int j = 0; j < 4; ++j)
+					{
+						dst.BoneIdx[j] = static_cast<uint16>((j < boneCount) ? vert.BoneIndexes[j] : 0);
+					}
+
+					uint16 packedWeights[3] = { 0, 0, 0 };
+					uint32 packedSum = 0;
+					for (int j = 0; j < 3; ++j)
+					{
+						const int sourceWeight = (j < boneCount) ? vert.BoneWeights[j] : 0;
+						int scaled = static_cast<int>((sourceWeight / 100.0f) * 65535.0f + 0.5f);
+						if (scaled < 0)
+						{
+							scaled = 0;
+						}
+						else if (scaled > 65535)
+						{
+							scaled = 65535;
+						}
+						packedWeights[j] = static_cast<uint16>(scaled);
+						packedSum += packedWeights[j];
+					}
+
+					if (packedSum > 65535u)
+					{
+						uint32 excess = packedSum - 65535u;
+						for (int j = 0; j < 3 && excess > 0; ++j)
+						{
+							uint32 reduction = std::min<uint32>(packedWeights[j], excess);
+							packedWeights[j] = static_cast<uint16>(packedWeights[j] - reduction);
+							excess -= reduction;
+						}
+					}
+
+					for (int j = 0; j < 3; ++j)
+					{
+						dst.Weight[j] = packedWeights[j];
+					}
+				}
+				else if (VertexInfluences)
+				{
+					W3dVertInfStruct& dst = VertexInfluences[i];
+					dst.BoneIdx[0] = static_cast<uint16>(vert.BoneIndexes[0]);
+					dst.BoneIdx[1] = static_cast<uint16>((boneCount > 1) ? vert.BoneIndexes[1] : 0);
+					int weight0 = vert.BoneWeights[0];
+					if (weight0 < 0) weight0 = 0;
+					else if (weight0 > 100) weight0 = 100;
+					dst.Weight[0] = static_cast<uint16>(weight0);
+					int weight1 = (boneCount > 1) ? vert.BoneWeights[1] : 0;
+					if (weight1 < 0) weight1 = 0;
+					else if (weight1 > 100) weight1 = 100;
+					dst.Weight[1] = static_cast<uint16>(weight1);
 				}
 			}
 
-			ComputeSkinOptimization();
+			if (!HasSupersmoothSkin)
+			{
+				ComputeSkinOptimization();
+			}
 		}
 
 #ifndef W3X
@@ -7662,7 +8270,7 @@ namespace W3D::MaxTools
 				return true;
 			}
 
-			TT_PROFILER_SCOPE("MeshSave::SaveMaterialPass");
+			TT_PROFILER_SCOPE_N("MeshSave::SaveMaterialPass");
 
 			if (MeshBuilder.Get_Mesh_Stats().HasVertexMaterial[pass])
 			{
@@ -7704,7 +8312,7 @@ namespace W3D::MaxTools
 
 		bool Save(ChunkSaveClass& csave, bool optimizecollision, bool new_format)
 		{
-			TT_PROFILER_SCOPE("MeshSave::Save");
+			TT_PROFILER_SCOPE_N("MeshSave::Save");
 
 			if (!csave.Begin_Chunk(W3DChunkType::MESH))
 			{
@@ -8500,7 +9108,7 @@ namespace W3D::MaxTools
 		bool Save(XMLWriter& csave, bool optimizecollision)
 		{
 			return !csave.StartTag("W3DMesh", 1) || SaveMeshHeader(csave) || SaveVertices(csave) || SaveVertexNormals(csave) || SaveTangentBinormals(csave) || SaveVertexColors(csave) || SaveTexcoords(csave) || SaveVertexInfluences(csave) || SaveVertexShadeIndices(csave) || SaveTriangles(csave) || SaveFXShaders(csave) || (optimizecollision && GenerateAABTree(csave)) || !csave.WriteClosingTag();
-		}
+	}
 #endif
 	};
 
@@ -8518,7 +9126,7 @@ namespace W3D::MaxTools
 	public:
 		MeshGeometryExportTaskClass(INode* node, LodData& lod) : GeometryExportTaskClass(node, lod), Material(nullptr)
 		{
-			TT_PROFILER_SCOPE("MeshGeometryExportTaskClass()");
+			TT_PROFILER_SCOPE_N("MeshGeometryExportTaskClass()");
 			W3DAppDataChunk* data = &W3DUtilities::GetOrCreateW3DAppDataChunk(*Node);
 			memcpy(&ExportFlags, data, sizeof(ExportFlags));
 			Object* obj = Node->EvalWorldState(Time).obj;
@@ -8548,7 +9156,7 @@ namespace W3D::MaxTools
 
 		void Initialize()
 		{
-			TT_PROFILER_SCOPE("MeshGeometryExportTaskClass::Initialize");
+			TT_PROFILER_SCOPE_N("MeshGeometryExportTaskClass::Initialize");
 			Material = nullptr;
 			Mtl* mat = Node->GetMtl();
 
@@ -8757,7 +9365,7 @@ namespace W3D::MaxTools
 			else
 			{
 				ContainerName[0] = 0;
-			}
+	}
 #endif
 
 #ifndef W3X
@@ -8979,6 +9587,26 @@ namespace W3D::MaxTools
 			return 4;
 		}
 	};
+
+	class LightExportTaskClass : public GeometryExportTaskClass
+	{
+	public:
+		LightExportTaskClass(INode* node, LodData& lod) : GeometryExportTaskClass(node, lod)
+		{
+			memset(ContainerName, 0, sizeof(ContainerName));
+		}
+
+		virtual void Save(LodData& lod)
+		{
+		}
+
+		virtual bool IsLight() { return true; }
+
+		virtual int GetType()
+		{
+			return 6;
+		}
+	};
 #endif
 
 	class ProxyExportTaskClass : public GeometryExportTaskClass
@@ -9098,6 +9726,11 @@ namespace W3D::MaxTools
 		{
 			return new AggregateExportTaskClass(node, lod);
 		}
+
+		if (IsLight(node))
+		{
+			return new LightExportTaskClass(node, lod);
+		}
 #endif
 
 		return nullptr;
@@ -9105,7 +9738,7 @@ namespace W3D::MaxTools
 
 	MeshConnection::MeshConnection(DynamicVectorClass<GeometryExportTaskClass*> vector, LodData& lod) : Time(lod.Time), Node(lod.Node)
 	{
-		TT_PROFILER_SCOPE("MeshConnection::MeshConnection");
+		TT_PROFILER_SCOPE_N("MeshConnection::MeshConnection");
 		CopyW3DName(Name, lod.Name);
 
 		for (int i = 0; i < vector.Count(); i++)
@@ -9122,6 +9755,10 @@ namespace W3D::MaxTools
 			{
 				Aggregates.Add(con);
 			}
+			else if (vector[i]->IsLight())
+			{
+				Lights.Add(con);
+			}
 			else if (vector[i]->IsProxy())
 			{
 				Proxies.Add(con);
@@ -9137,7 +9774,7 @@ namespace W3D::MaxTools
 	{
 		if (!OriginNodeList)
 		{
-			TT_PROFILER_SCOPE("W3DExport::CreateOriginNodeList");
+			TT_PROFILER_SCOPE_N("W3DExport::CreateOriginNodeList");
 			static OriginFilterClass filter;
 			OriginNodeList = new INodeListClass(ExpInt->theScene, Time, &filter);
 
@@ -9163,7 +9800,7 @@ namespace W3D::MaxTools
 		{
 			char* c = &name[namelen - 1];
 
-			if (!_stricmp(c, "_L") || !_stricmp(c, "_M"))
+			if (!tt_stricmp(c, "_L") || !tt_stricmp(c, "_M"))
 			{
 				LogDataDialogClass::WriteLogWindow(L"LOD export detected. Truncating asset name '%S'", name);
 				*c = 0;
@@ -9172,7 +9809,7 @@ namespace W3D::MaxTools
 		}
 #endif
 
-		TT_PROFILER_SCOPE("W3DExport::ExportData");
+		TT_PROFILER_SCOPE_N("W3DExport::ExportData");
 
 #ifdef W3X
 
@@ -9306,7 +9943,7 @@ namespace W3D::MaxTools
 	bool W3DExport::ExportHierarchy(const char* name, XMLWriter& csave, INode* node)
 #endif
 	{
-		TT_PROFILER_SCOPE("W3DExport::ExportHierarchy");
+		TT_PROFILER_SCOPE_N("W3DExport::ExportHierarchy");
 
 		if (!m_Settings.ExportSkeleton)
 		{
@@ -9351,7 +9988,7 @@ namespace W3D::MaxTools
 					StringClass str2 = str;
 					includes.push_back(str2);
 				}
-			}
+	}
 #endif
 
 			return true;
@@ -9863,11 +10500,13 @@ namespace W3D::MaxTools
 		if (Vector)
 		{
 			delete[] Vector;
+			Vector = nullptr;
 		}
 
 		if (DefaultVector)
 		{
 			delete[] DefaultVector;
+			DefaultVector = nullptr;
 		}
 	}
 
@@ -10121,7 +10760,7 @@ namespace W3D::MaxTools
 		if (!csave.StartTag("Channels", 1) || !csave.EndTag())
 		{
 			return false;
-		}
+	}
 #endif
 
 		float data[4];
@@ -10275,12 +10914,14 @@ namespace W3D::MaxTools
 			if (Transforms[i])
 			{
 				delete[] Transforms[i];
+				Transforms[i] = nullptr;
 			}
 		}
 
 		if (Transforms)
 		{
 			delete[] Transforms;
+			Transforms = nullptr;
 		}
 
 		for (int i = 0; i < Hierarchy->GetBoneCount(); i++)
@@ -10288,27 +10929,32 @@ namespace W3D::MaxTools
 			if (Angles[i])
 			{
 				delete[] Angles[i];
+				Angles[i] = nullptr;
 			}
 		}
 
 		if (Angles)
 		{
 			delete[] Angles;
+			Angles = nullptr;
 		}
 
 		if (BitChannels)
 		{
 			delete[] BitChannels;
+			BitChannels = nullptr;
 		}
 
 		if (VisibilityChannels)
 		{
 			delete[] VisibilityChannels;
+			VisibilityChannels = nullptr;
 		}
 
 		if (BinaryMove)
 		{
 			delete[] BinaryMove;
+			BinaryMove = nullptr;
 		}
 
 		LogDataDialogClass::WriteLogWindow(L"Destroy Log..%d,%d,%d,%d, %S..\n", 1, 2, 3, 4, "go");
@@ -10364,7 +11010,7 @@ namespace W3D::MaxTools
 		if (!hierarchy->LoadHierarchy(filename))
 		{
 			delete hierarchy;
-			hierarchy = 0;
+			hierarchy = nullptr;
 		}
 
 		return hierarchy;
@@ -10405,7 +11051,7 @@ namespace W3D::MaxTools
 			return true;
 		}
 
-		TT_PROFILER_SCOPE("W3DExport::ExportAnimation");
+		TT_PROFILER_SCOPE_N("W3DExport::ExportAnimation");
 		HierarchySave* pose = GetHierarchy();
 
 		if (node && pose)
@@ -10433,7 +11079,7 @@ namespace W3D::MaxTools
 
 	bool FindDuplicateNodes(INodeListClass* list)
 	{
-		TT_PROFILER_SCOPE("W3DExport::FindDuplicateNodes");
+		TT_PROFILER_SCOPE_N("W3DExport::FindDuplicateNodes");
 		std::unordered_set<WideStringClass, hash_wstring, equals_wstring> names;
 		names.reserve(list->GetNodeCount());
 
@@ -10444,7 +11090,7 @@ namespace W3D::MaxTools
 			_wcslwr(name.Peek_Buffer());
 
 #ifndef W3X
-			if (!IsAggregate(node)) // aggregates don't care about being duplicates, as per the original code
+			if (!IsAggregate(node) && !IsLight(node)) // aggregates and lights don't care about being duplicates, as per the original code
 #endif
 			{
 				if (names.find(name) != names.end())
@@ -10473,7 +11119,7 @@ namespace W3D::MaxTools
 			return true;
 		}
 
-		TT_PROFILER_SCOPE("W3DExport::ExportGeometry");
+		TT_PROFILER_SCOPE_N("W3DExport::ExportGeometry");
 		HierarchySave* hierarchy = nullptr;
 
 		if (m_Settings.UseExistingSkeleton || m_Settings.ExportSkeleton)
@@ -10483,9 +11129,9 @@ namespace W3D::MaxTools
 
 		DynamicVectorClass<GeometryExportTaskClass*> v;
 		GeometryFilterClass filter;
-		TT_PROFILER_SCOPE_START("Create Geo Node List");
+		TT_PROFILER_SCOPE_START(profileGeoNodeList, "Create Geo Node List");
 		INodeListClass* list = new INodeListClass(node, Time, &filter);
-		TT_PROFILER_SCOPE_STOP();
+		TT_PROFILER_SCOPE_STOP(profileGeoNodeList);
 
 		if (!FindDuplicateNodes(list))
 		{
@@ -10507,7 +11153,7 @@ namespace W3D::MaxTools
 			v.Resize(count);
 
 			{
-				TT_PROFILER_SCOPE("Create Geo Export Tasks");
+				TT_PROFILER_SCOPE_N("Create Geo Export Tasks");
 				for (int i = 0; i < count; i++)
 				{
 					GeometryExportTaskClass* c = CreateGeometryExportTask(list->GetNode(i), lod);
@@ -10592,12 +11238,14 @@ namespace W3D::MaxTools
 			~HLodSubObjectArray()
 			{
 				delete[] SubObjects;
+				SubObjects = nullptr;
 			}
 		};
 
 		W3dHLodHeaderStruct Header;
 		HLodSubObjectArray* Lods;
 		HLodSubObjectArray Aggregates;
+		HLodSubObjectArray Lights;
 		HLodSubObjectArray Proxies;
 	public:
 		HLodSave(MeshConnection** connections, int nodecount, TimeValue time, const char* name, const char* hierarchyname);
@@ -10607,6 +11255,7 @@ namespace W3D::MaxTools
 		bool SaveSubSubobjectArray(ChunkSaveClass& csave, HLodSubObjectArray& subobj);
 		bool SaveLodArray(ChunkSaveClass& csave);
 		bool SaveAggregateArray(ChunkSaveClass& csave);
+		bool SaveLightArray(ChunkSaveClass& csave);
 		bool SaveProxyArray(ChunkSaveClass& csave);
 		bool Save(ChunkSaveClass& csave);
 #else
@@ -10618,7 +11267,7 @@ namespace W3D::MaxTools
 
 	HLodSave::HLodSave(MeshConnection** connections, int nodecount, TimeValue time, const char* name, const char* hierarchyname) : Header(), Lods(nullptr)
 	{
-		TT_PROFILER_SCOPE("HLodSave::HLodSave");
+		TT_PROFILER_SCOPE_N("HLodSave::HLodSave");
 		Header.Version = 0x10000;
 		Header.LodCount = nodecount;
 		CopyW3DName(Header.Name, name);
@@ -10633,7 +11282,7 @@ namespace W3D::MaxTools
 		}
 
 		{
-			TT_PROFILER_SCOPE("Get Sub-Objects");
+			TT_PROFILER_SCOPE_N("Get Sub-Objects");
 
 			for (int i = 0; i < nodecount; i++)
 			{
@@ -10695,7 +11344,7 @@ namespace W3D::MaxTools
 
 		if (count > 0)
 		{
-			TT_PROFILER_SCOPE("Get Aggregates");
+			TT_PROFILER_SCOPE_N("Get Aggregates");
 			Aggregates.SubObjects = new W3dHLodSubObjectStruct[count];
 			Aggregates.SubObjectCount = count;
 			Aggregates.Header.ModelCount = count;
@@ -10723,11 +11372,43 @@ namespace W3D::MaxTools
 			}
 		}
 
+		count = connections[nodecount - 1]->Lights.Count();
+
+		if (count > 0)
+		{
+			TT_PROFILER_SCOPE_N("Get Lights");
+			Lights.SubObjects = new W3dHLodSubObjectStruct[count];
+			Lights.SubObjectCount = count;
+			Lights.Header.ModelCount = count;
+			Lights.Header.MaxScreenSize = 0.0f;
+			LogDataDialogClass::WriteLogWindow(L" Exporting Lights:\n");
+			LogDataDialogClass::WriteLogWindow(L" light count: %d\n", count);
+
+			for (int j = 0; j < count; j++)
+			{
+				const char* subobjname;
+				int subobjbone;
+				INode* subobjnode;
+#ifndef W3X
+				connections[nodecount - 1]->GetLightConnectionInfo(j, &subobjname, &subobjbone, &subobjnode);
+#else
+				int type;
+				connections[nodecount - 1]->GetLightConnectionInfo(j, &subobjname, &subobjbone, &subobjnode, &type);
+#endif
+				strncpy(Lights.SubObjects[j].Name, subobjname, W3D_NAME_LEN * 2);
+				Lights.SubObjects[j].BoneIndex = subobjbone;
+#ifdef W3X
+				Lights.SubObjects[j].Type = type;
+#endif
+				LogDataDialogClass::WriteLogWindow(L"  Light object: %S Bone: %d\n", subobjname, subobjbone); // NOTE(Mara): This is too expensive to be in the inner loop.
+			}
+		}
+
 		count = connections[nodecount - 1]->Proxies.Count();
 
 		if (count > 0)
 		{
-			TT_PROFILER_SCOPE("Get Proxies");
+			TT_PROFILER_SCOPE_N("Get Proxies");
 			Proxies.SubObjects = new W3dHLodSubObjectStruct[count];
 			Proxies.SubObjectCount = count;
 			Proxies.Header.ModelCount = count;
@@ -10761,6 +11442,7 @@ namespace W3D::MaxTools
 		if (Lods)
 		{
 			delete[] Lods;
+			Lods = nullptr;
 		}
 	}
 
@@ -10793,7 +11475,7 @@ namespace W3D::MaxTools
 
 	bool HLodSave::SaveLodArray(ChunkSaveClass& csave)
 	{
-		TT_PROFILER_SCOPE("HLodSave::SaveLodArray");
+		TT_PROFILER_SCOPE_N("HLodSave::SaveLodArray");
 
 		for (unsigned int i = 0; i < Header.LodCount; i++)
 		{
@@ -10808,26 +11490,32 @@ namespace W3D::MaxTools
 
 	bool HLodSave::SaveAggregateArray(ChunkSaveClass& csave)
 	{
-		TT_PROFILER_SCOPE("HLodSave::SaveAggregateArray");
+		TT_PROFILER_SCOPE_N("HLodSave::SaveAggregateArray");
 		return Aggregates.SubObjectCount <= 0 || csave.Begin_Chunk(W3DChunkType::HLOD_AGGREGATE_ARRAY) && SaveSubSubobjectArray(csave, Aggregates) && csave.End_Chunk();
+	}
+
+	bool HLodSave::SaveLightArray(ChunkSaveClass& csave)
+	{
+		TT_PROFILER_SCOPE_N("HLodSave::SaveLightArray");
+		return Lights.SubObjectCount <= 0 || csave.Begin_Chunk(W3DChunkType::HLOD_LIGHT_ARRAY) && SaveSubSubobjectArray(csave, Lights) && csave.End_Chunk();
 	}
 
 	bool HLodSave::SaveProxyArray(ChunkSaveClass& csave)
 	{
-		TT_PROFILER_SCOPE("HLodSave::SaveProxyArray");
+		TT_PROFILER_SCOPE_N("HLodSave::SaveProxyArray");
 		return Proxies.SubObjectCount <= 0 || csave.Begin_Chunk(W3DChunkType::HLOD_PROXY_ARRAY) && SaveSubSubobjectArray(csave, Proxies) && csave.End_Chunk();
 	}
 
 	bool HLodSave::Save(ChunkSaveClass& csave)
 	{
-		TT_PROFILER_SCOPE("HLodSave::Save");
+		TT_PROFILER_SCOPE_N("HLodSave::Save");
 
 		if (!Lods)
 		{
 			return false;
 		}
 
-		if (csave.Begin_Chunk(W3DChunkType::HLOD) && SaveHeader(csave) && SaveLodArray(csave) && SaveAggregateArray(csave) && SaveProxyArray(csave))
+		if (csave.Begin_Chunk(W3DChunkType::HLOD) && SaveHeader(csave) && SaveLodArray(csave) && SaveAggregateArray(csave) && SaveLightArray(csave) && SaveProxyArray(csave))
 		{
 			return csave.End_Chunk();
 		}

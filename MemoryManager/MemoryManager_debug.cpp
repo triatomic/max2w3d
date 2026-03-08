@@ -1,4 +1,3 @@
-#include "general.h"
 #include "platform.h"
 #include "MemoryManager.h"
 #include "MemTracker.h"
@@ -131,5 +130,18 @@ void operator delete[](void* memory, size_t /*size*/, std::align_val_t align)
 	MemoryTrackerThreadLocalInformation* info = MemoryTracker::GetThreadLocalInformation();
 	MemoryTracker::Free(memory, size_t(align), DeallocType_VectorDeleteAligned, info->CurrentSourceFile, info->CurrentSourceFunction, info->CurrentSourceLine);
 };
+
+[[nodiscard]] void* operator new  (std::size_t size, const std::nothrow_t&) noexcept {
+	return operator new(size);
+}
+[[nodiscard]] void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
+	return operator new[](size);
+}
+[[nodiscard]] void* operator new  (std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+	return operator new(size, align);
+}
+[[nodiscard]] void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+	return operator new[](size, align);
+}
 
 POP_MEMORY_MACROS;

@@ -121,6 +121,12 @@ public:
 
 		int result = 0;
 
+		// NOTE(Mara): If the file isn't open yet (which should honestly be a straight assert failure but here we are),
+		//             We need to skip the buffer logic, otherwise we will repeatedly read the first 64kB of the file over and over again.
+		if (!Is_Open()) {
+			return RawFileClass::Read(dest, count);
+		}
+
 		// Try to read the entire request from the buffer
 		result += TryReadFromBuffer(dest, count);
 
@@ -151,6 +157,8 @@ public:
 
 	int Seek(int offset, int origin) final
 	{
+		TT_ASSERT(Is_Open());
+
 		if (origin == ORIGIN_CURRENT && offset == 0)
 			return Tell();
 

@@ -1,22 +1,28 @@
 #pragma once
 #include "fileclass.h"
-class RAMFileClass : public FileClass
+class RAMFileClass final : public FileClass
 {
 private:
 	char* Buffer;
 	int MaxLength;
 	int Length;
-	int Offset;
-	int Access;
-	bool IsOpen;
-	bool IsAllocated;
-	bool Reallocate;
+	int Offset = 0;
+	int Access = OpenMode::OPEN_READ;
+	bool IsOpen = false;
+	bool IsAllocated = false;
+	bool Reallocate = false;
+	bool IsHashChecked = false;
 public:
-	RAMFileClass(void* buffer, int len) : Buffer((char*)buffer), MaxLength(len), Length(len), Offset(0), Access(1), IsOpen(false), IsAllocated(false), Reallocate(false)
+	RAMFileClass(std::unique_ptr<unsigned char[]>&& data, int len, bool IsHashChecked = false) : Buffer((char*)data.release()), MaxLength(len), Length(len), IsAllocated(true), IsHashChecked(IsHashChecked) {}
+	RAMFileClass(void* buffer, int len, bool deletemem = false, bool IsHashChecked = false) : Buffer((char*)buffer), MaxLength(len), Length(len), IsHashChecked(IsHashChecked)
 	{
 		if (!buffer && len > 0)
 		{
-			Buffer = (char*)malloc(len);
+			Buffer = new char[len];
+			IsAllocated = true;
+		}
+		else if (buffer && deletemem)
+		{
 			IsAllocated = true;
 		}
 	}
@@ -25,7 +31,7 @@ public:
 		IsOpen = false;
 		if (IsAllocated)
 		{
-			free(Buffer);
+			delete[] Buffer;
 			Buffer = nullptr;
 			IsAllocated = false;
 		}
@@ -49,14 +55,12 @@ public:
 	}
 	virtual bool Delete() override
 	{
+		if (Is_Open())
 		{
-			if (Is_Open())
-			{
-				return false;
-			}
-			Length = 0;
-			return true;
+			return false;
 		}
+		Length = 0;
+		return true;
 	}
 	virtual bool Is_Available(int forced) override
 	{
@@ -79,7 +83,7 @@ public:
 		Offset = 0;
 		Access = access;
 		IsOpen = true;
-		if (access == 2)
+		if (access == OpenMode::OPEN_WRITE)
 		{
 			Length = 0;
 		}
@@ -92,17 +96,14 @@ public:
 			return 0;
 		}
 		bool close = false;
-		if (Is_Open())
+		if (!Is_Open()) {
+			Open(OpenMode::OPEN_READ);
+			close = true;
+		}
+		if (!IsOpen || !(Access & OpenMode::OPEN_READ))
 		{
-			if (Access & 1)
-			{
-				goto l1;
-			}
 			return 0;
 		}
-		close = true;
-		Open(1);
-	l1:
 		int len = Length - Offset;
 		if (size < len)
 		{
@@ -123,19 +124,19 @@ public:
 			return Offset;
 		}
 		int len = Length;
-		if (Access & 2)
+		if (Access & OpenMode::OPEN_WRITE)
 		{
 			len = MaxLength;
 		}
 		switch (dir)
 		{
-		case 0:
+		case ORIGIN_START:
 			Offset = pos;
 			break;
-		case 1:
+		case ORIGIN_CURRENT:
 			Offset += pos;
 			break;
-		case 2:
+		case ORIGIN_END:
 			Offset = len + pos;
 			break;
 		}
@@ -166,28 +167,26 @@ public:
 		bool close = false;
 		if (!Is_Open())
 		{
-			Open(2);
+			Open(OpenMode::OPEN_WRITE);
 			close = true;
-			goto l1;
 		}
-		if (!(Access & 2))
+		if (!IsOpen || !(Access & OpenMode::OPEN_WRITE))
 		{
 			return 0;
 		}
-	l1:
-		int len;
-		for (;;)
+		if (Reallocate)
 		{
-			int mlen = MaxLength;
-			len = MaxLength - Offset;
-			if (size <= len || !Reallocate)
-			{
-				break;
+			int new_maxlength = MaxLength;
+			while (size >= (new_maxlength - Offset)) {
+				new_maxlength *= 2;
 			}
-			MaxLength = 2 * mlen;
-			Buffer = (char *)realloc(Buffer, 2 * mlen);
+			char* old_buffer = Buffer;
+			Buffer = new char[new_maxlength];
+			memcpy(Buffer, old_buffer, Length);
+			delete[] old_buffer;
+			MaxLength = new_maxlength;
 		}
-		if (size >= len)
+		if (size >= MaxLength - Offset)
 		{
 			size = MaxLength - Offset;
 		}
@@ -235,12 +234,13 @@ public:
 		MaxLength = mlen - start;
 		if (Is_Open())
 		{
-			Seek(0, 0);
+			Seek(0, ORIGIN_START);
 		}
 	}
+	// NOTE: files inside mix files are "already checked", see also RawFileClass::Is_Hash_Checked
 	virtual bool Is_Hash_Checked() const override
 	{
-		return false;
+		return IsHashChecked;
 	}
 	void Set_Reallocate(bool reallocate)
 	{

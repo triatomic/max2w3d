@@ -32,3 +32,8 @@ EXPORTS
 	??_U@YAPEAX_KW4align_val_t@std@@@Z				;void * __ptr64 __cdecl operator new[](unsigned __int64,enum std::align_val_t)
 	??_V@YAXPEAXW4align_val_t@std@@@Z				;void __cdecl operator delete[](void * __ptr64,enum std::align_val_t)
 	??_V@YAXPEAX_KW4align_val_t@std@@@Z				;void __cdecl operator delete[](void * __ptr64,unsigned __int64,enum std::align_val_t)
+
+	??2@YAPEAX_KAEBUnothrow_t@std@@@Z                  ;void* operator new  (std::size_t size, const std::nothrow_t&)
+	??_U@YAPEAX_KAEBUnothrow_t@std@@@Z                 ;void* operator new[](std::size_t size, const std::nothrow_t&)
+	??2@YAPEAX_KW4align_val_t@std@@AEBUnothrow_t@1@@Z  ;void* operator new  (std::size_t size, std::align_val_t align, const std::nothrow_t&)
+	??_U@YAPEAX_KW4align_val_t@std@@AEBUnothrow_t@1@@Z ;void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&)

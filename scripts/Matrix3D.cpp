@@ -1,4 +1,3 @@
-#include "general.h"
 #include "Matrix3D.h"
 #ifndef W3D_MAX_TOOLS // horrible hack to allow precompiling <max.h>, which already contains a class called Matrix3 with no namespace
 #include "Matrix3.h"

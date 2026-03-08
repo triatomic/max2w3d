@@ -1,4 +1,3 @@
-#include "general.h"
 #pragma warning(disable: 4073) //warning C4073: initializers put in library initialization area - That's EXACTLY why I put that pragma in...
 #pragma init_seg(lib) // Move this files static initializers up a level
 #pragma warning(default: 4073)
@@ -618,7 +617,7 @@ int INIClass::Get_Int(char const *section,char const *entry,int defaultvalue) co
 					}
 					else
 					{
-						if (tolower(Entry->Value[strlen(Entry->Value) - 1]) != 'h')
+						if (tt_tolower(Entry->Value[strlen(Entry->Value) - 1]) != 'h')
 						{
 							return atoi(Entry->Value);
 						}
@@ -669,7 +668,7 @@ bool INIClass::Get_Bool(char const *section,char const *entry,bool defaultvalue)
 			{
 				if (Entry->Value)
 				{
-					switch ( toupper(Entry->Value[0]) )
+					switch ( tt_toupper(Entry->Value[0]) )
 					{
 						case '1':
 						case 'T':

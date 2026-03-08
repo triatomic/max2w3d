@@ -1,292 +1,547 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="ASan|x64">
-      <Configuration>ASan</Configuration>
+    <ProjectConfiguration Include="asan|x64">
+      <Configuration>asan</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
+    <ProjectConfiguration Include="debug|x64">
+      <Configuration>debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|x64">
-      <Configuration>Release</Configuration>
+    <ProjectConfiguration Include="profile|x64">
+      <Configuration>profile</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="release|x64">
+      <Configuration>release</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{0486ceb9-6fca-49f2-af48-7eb6b829937f}</ProjectGuid>
+    <ProjectGuid>{D161C920-22FC-6085-05B6-E7AB6B650300}</ProjectGuid>
+    <DefaultLanguage>en-US</DefaultLanguage>
     <RootNamespace>w3xmaxtools</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>w3xmaxtools</ProjectName>
+  </PropertyGroup>
+  <PropertyGroup Label="Globals">
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='asan|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
     <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ASan|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
     <EnableASAN>true</EnableASAN>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='profile|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v143</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
+    <Import Project="..\shared\AdressSanitizer.props" Condition="'$(Configuration)|$(Platform)'=='asan|x64'" />
   </ImportGroup>
-  <ImportGroup Label="Shared">
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <ImportGroup Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\shared\always.props" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\shared\always.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ASan|x64'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="..\shared\always.props" />
-    <Import Project="..\shared\AdressSanitizer.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExecutablePath>$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(SolutionDir)\dep\dxsdk_june10\include;$(SolutionDir)w3xmaxtools;$(SolutionDir)w3dmaxtools;$(SolutionDir)w3xmaxtools/Redist;$(SolutionDir)w3dmaxtools/Redist;$(SolutionDir)/dep/maxsdk/include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)\dep\dxsdk_june10\lib\x64;$(SolutionDir)/dep/maxsdk/lib/x64/Release;$(LibraryPath)</LibraryPath>
-    <IntDir>$(SolutionDir)temp\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
-    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='asan|x64'">
+    <TargetName>max2w3x</TargetName>
+    <OutDir>..\bin\x64\asan\</OutDir>
+    <IntDir>intermediate\asanwin64\</IntDir>
     <TargetExt>.dle</TargetExt>
-    <TargetName>Max2w3x</TargetName>
-    <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <GenerateManifest>false</GenerateManifest>
+    <LinkIncremental>false</LinkIncremental>
+    <OutputFile>..\bin\x64\asan\max2w3x.dle</OutputFile>
+    <IgnoreImportLibrary>false</IgnoreImportLibrary>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='debug|x64'">
+    <TargetName>max2w3x</TargetName>
+    <OutDir>..\bin\x64\debug\</OutDir>
+    <IntDir>intermediate\debugwin64\</IntDir>
+    <TargetExt>.dle</TargetExt>
+    <GenerateManifest>false</GenerateManifest>
     <LinkIncremental>true</LinkIncremental>
+    <OutputFile>..\bin\x64\debug\max2w3x.dle</OutputFile>
+    <IgnoreImportLibrary>false</IgnoreImportLibrary>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ExecutablePath>$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(SolutionDir)\dep\dxsdk_june10\include;$(SolutionDir)w3xmaxtools;$(SolutionDir)w3dmaxtools;$(SolutionDir)w3xmaxtools/Redist;$(SolutionDir)w3dmaxtools/Redist;$(SolutionDir)/dep/maxsdk/include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)\dep\dxsdk_june10\lib\x64;$(SolutionDir)/dep/maxsdk/lib/x64/Release;$(LibraryPath)</LibraryPath>
-    <IntDir>$(SolutionDir)temp\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
-    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='profile|x64'">
+    <TargetName>max2w3x</TargetName>
+    <OutDir>..\bin\x64\profile\</OutDir>
+    <IntDir>intermediate\profilewin64\</IntDir>
     <TargetExt>.dle</TargetExt>
-    <TargetName>Max2w3x</TargetName>
-    <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <GenerateManifest>false</GenerateManifest>
+    <LinkIncremental>false</LinkIncremental>
+    <OutputFile>..\bin\x64\profile\max2w3x.dle</OutputFile>
+    <IgnoreImportLibrary>false</IgnoreImportLibrary>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">
-    <ExecutablePath>$(ExecutablePath)</ExecutablePath>
-    <IncludePath>$(SolutionDir)\dep\dxsdk_june10\include;$(SolutionDir)w3xmaxtools;$(SolutionDir)w3dmaxtools;$(SolutionDir)w3xmaxtools/Redist;$(SolutionDir)w3dmaxtools/Redist;$(SolutionDir)/dep/maxsdk/include;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)\dep\dxsdk_june10\lib\x64;$(SolutionDir)/dep/maxsdk/lib/x64/Release;$(LibraryPath)</LibraryPath>
-    <IntDir>$(SolutionDir)temp\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
-    <OutDir>$(SolutionDir)bin\$(Platform)\$(Configuration)\</OutDir>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release|x64'">
+    <TargetName>max2w3x</TargetName>
+    <OutDir>..\bin\x64\release\</OutDir>
+    <IntDir>intermediate\releasewin64\</IntDir>
     <TargetExt>.dle</TargetExt>
-    <TargetName>Max2w3x</TargetName>
-    <CodeAnalysisRuleSet>NativeRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <GenerateManifest>false</GenerateManifest>
+    <LinkIncremental>false</LinkIncremental>
+    <OutputFile>..\bin\x64\release\max2w3x.dle</OutputFile>
+    <IgnoreImportLibrary>false</IgnoreImportLibrary>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='asan|x64'">
     <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <PreprocessorDefinitions>NDEBUG;W3D_MAX_TOOLS;W3X;WIN64;_CRT_SECURE_NO_DEPRECATE;_ITERATOR_DEBUG_LEVEL=0;_USRDLL;%(PreprocessorDefinitions);$(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\w3xmaxtools;..\w3xmaxtools\include;$(solutiondir)dep;$(solutiondir)dep\imgui;$(solutiondir)dep\imgui\backends;$(solutiondir)dep\imgui\misc;$(solutiondir)shared;$(solutiondir)shared\source;..\dep\dxsdk_june10\include;..\dep\maxsdk\include;..\memorymanager;..\render\include;..\scripts;..\shared;..\w3dmaxtools\redist;..\w3xmaxtools\redist</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <SDLCheck>true</SDLCheck>
+      <UseUnicodeForAssemblerListing>false</UseUnicodeForAssemblerListing>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>false</OmitFramePointers>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <UndefineAllPreprocessorDefinitions>false</UndefineAllPreprocessorDefinitions>
+      <IgnoreStandardIncludePath>false</IgnoreStandardIncludePath>
+      <PreprocessToFile>false</PreprocessToFile>
+      <PreprocessSuppressLineNumbers>false</PreprocessSuppressLineNumbers>
+      <PreprocessKeepComments>false</PreprocessKeepComments>
+      <StringPooling>true</StringPooling>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <SmallerTypeCheck>false</SmallerTypeCheck>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Precise</FloatingPointModel>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <OpenMPSupport>false</OpenMPSupport>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ExpandAttributedSource>false</ExpandAttributedSource>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <GenerateXMLDocumentationFiles>false</GenerateXMLDocumentationFiles>
+      <BrowseInformation>false</BrowseInformation>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>Default</CompileAs>
+      <AdditionalOptions>/permissive /Zc:__cplusplus</AdditionalOptions>
+      <PrecompiledHeaderFile>w3xmaxtools_pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>intermediate\asanwin64\w3xmaxtools.pch</PrecompiledHeaderOutputFile>
+      <ProgramDatabaseFileName>intermediate\asanwin64\max2w3x_compiler.pdb</ProgramDatabaseFileName>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <ForcedIncludeFiles>w3xmaxtools_pch.h</ForcedIncludeFiles>
+      <SupportJustMyCode>false</SupportJustMyCode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OutputFile>..\bin\x64\asan\max2w3x.dle</OutputFile>
+      <ShowProgress>NotSet</ShowProgress>
+      <AdditionalLibraryDirectories>..\dep\dxsdk_june10\lib\x64;..\dep\maxsdk\lib\x64\release</AdditionalLibraryDirectories>
+      <ProgramDatabaseFile>..\bin\x64\asan\max2w3x.pdb</ProgramDatabaseFile>
+      <GenerateMapFile>false</GenerateMapFile>
+      <MapExports>false</MapExports>
+      <SwapRunFromCD>false</SwapRunFromCD>
+      <SwapRunFromNET>false</SwapRunFromNET>
+      <Driver>NotSet</Driver>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <ProfileGuidedDatabase>
+      </ProfileGuidedDatabase>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <IgnoreEmbeddedIDL>false</IgnoreEmbeddedIDL>
+      <TypeLibraryResourceID>1</TypeLibraryResourceID>
+      <NoEntryPoint>false</NoEntryPoint>
+      <SetChecksum>false</SetChecksum>
+      <TurnOffAssemblyGeneration>false</TurnOffAssemblyGeneration>
+      <TargetMachine>MachineX64</TargetMachine>
+      <Profile>false</Profile>
+      <CLRImageType>Default</CLRImageType>
+      <LinkErrorReporting>PromptImmediately</LinkErrorReporting>
+      <AdditionalDependencies>advapi32.lib;bmm.lib;comdlg32.lib;core.lib;d3d9.lib;d3dx9.lib;gdi32.lib;geom.lib;kernel32.lib;maxscrpt.lib;maxutil.lib;mesh.lib;odbc32.lib;odbccp32.lib;ole32.lib;oleaut32.lib;Paramblk2.lib;shell32.lib;shlwapi.lib;user32.lib;uuid.lib;version.lib;Winmm.lib;winspool.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <IgnoreSpecificDefaultLibraries></IgnoreSpecificDefaultLibraries>
+      <LargeAddressAware>true</LargeAddressAware>
+      <MapFileName></MapFileName>
+      <ImportLibrary>..\bin\x64\asan\max2w3x.lib</ImportLibrary>
+      <ModuleDefinitionFile>..\w3xmaxtools\w3xmaxtools.def</ModuleDefinitionFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <SDLCheck>true</SDLCheck>
-      <ConformanceMode>false</ConformanceMode>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>general.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).$(Configuration).pch</PrecompiledHeaderOutputFile>
-      <PreprocessorDefinitions>W3X;W3D_MAX_TOOLS;_CRT_SECURE_NO_DEPRECATE;_ITERATOR_DEBUG_LEVEL=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>DEBUG;W3D_MAX_TOOLS;W3X;WIN64;_CRT_SECURE_NO_DEPRECATE;_DEBUG;_ITERATOR_DEBUG_LEVEL=0;_MSVC_STL_DESTRUCTOR_TOMBSTONES=1;_USRDLL;%(PreprocessorDefinitions);$(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\w3xmaxtools;..\w3xmaxtools\include;$(solutiondir)dep;$(solutiondir)dep\imgui;$(solutiondir)dep\imgui\backends;$(solutiondir)dep\imgui\misc;$(solutiondir)shared;$(solutiondir)shared\source;..\dep\dxsdk_june10\include;..\dep\maxsdk\include;..\memorymanager;..\render\include;..\scripts;..\shared;..\w3dmaxtools\redist;..\w3xmaxtools\redist</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <MinimalRebuild>false</MinimalRebuild>
-      <ShowIncludes>false</ShowIncludes>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)scripts;$(SolutionDir)scripts;$(SolutionDir)MemoryManager;$(SolutionDir)Shared;$(SolutionDir)Render\include</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <SDLCheck>true</SDLCheck>
+      <UseUnicodeForAssemblerListing>false</UseUnicodeForAssemblerListing>
+      <InlineFunctionExpansion>Default</InlineFunctionExpansion>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Neither</FavorSizeOrSpeed>
+      <OmitFramePointers>false</OmitFramePointers>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
+      <UndefineAllPreprocessorDefinitions>false</UndefineAllPreprocessorDefinitions>
+      <IgnoreStandardIncludePath>false</IgnoreStandardIncludePath>
+      <PreprocessToFile>false</PreprocessToFile>
+      <PreprocessSuppressLineNumbers>false</PreprocessSuppressLineNumbers>
+      <PreprocessKeepComments>false</PreprocessKeepComments>
+      <StringPooling>true</StringPooling>
       <ExceptionHandling>Async</ExceptionHandling>
-      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SmallerTypeCheck>false</SmallerTypeCheck>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Precise</FloatingPointModel>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <OpenMPSupport>false</OpenMPSupport>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ExpandAttributedSource>false</ExpandAttributedSource>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <GenerateXMLDocumentationFiles>false</GenerateXMLDocumentationFiles>
+      <BrowseInformation>false</BrowseInformation>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>Default</CompileAs>
+      <AdditionalOptions>/permissive /Zc:__cplusplus</AdditionalOptions>
+      <PrecompiledHeaderFile>w3xmaxtools_pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>intermediate\debugwin64\w3xmaxtools.pch</PrecompiledHeaderOutputFile>
+      <ProgramDatabaseFileName>intermediate\debugwin64\max2w3x_compiler.pdb</ProgramDatabaseFileName>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <ForcedIncludeFiles>w3xmaxtools_pch.h</ForcedIncludeFiles>
+      <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>d3dx9.lib;shlwapi.lib;version.lib;maxscrpt.lib;mesh.lib;bmm.lib;geom.lib;core.lib;maxutil.lib;Paramblk2.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;Winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <ModuleDefinitionFile>w3xmaxtools.def</ModuleDefinitionFile>
+      <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Windows</SubSystem>
-      <MinimumRequiredVersion>6.01</MinimumRequiredVersion>
-      <StripPrivateSymbols>$(OutDir)\maxpdb\$(TargetFileName).pdb</StripPrivateSymbols>
+      <OutputFile>..\bin\x64\debug\max2w3x.dle</OutputFile>
+      <ShowProgress>NotSet</ShowProgress>
+      <AdditionalLibraryDirectories>..\dep\dxsdk_june10\lib\x64;..\dep\maxsdk\lib\x64\release</AdditionalLibraryDirectories>
+      <ProgramDatabaseFile>..\bin\x64\debug\max2w3x.pdb</ProgramDatabaseFile>
+      <GenerateMapFile>false</GenerateMapFile>
+      <MapExports>false</MapExports>
+      <SwapRunFromCD>false</SwapRunFromCD>
+      <SwapRunFromNET>false</SwapRunFromNET>
+      <Driver>NotSet</Driver>
+      <OptimizeReferences>false</OptimizeReferences>
+      <EnableCOMDATFolding>false</EnableCOMDATFolding>
+      <ProfileGuidedDatabase>
+      </ProfileGuidedDatabase>
+      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
+      <IgnoreEmbeddedIDL>false</IgnoreEmbeddedIDL>
+      <TypeLibraryResourceID>1</TypeLibraryResourceID>
+      <NoEntryPoint>false</NoEntryPoint>
+      <SetChecksum>false</SetChecksum>
+      <TurnOffAssemblyGeneration>false</TurnOffAssemblyGeneration>
+      <TargetMachine>MachineX64</TargetMachine>
+      <Profile>false</Profile>
+      <CLRImageType>Default</CLRImageType>
+      <LinkErrorReporting>PromptImmediately</LinkErrorReporting>
+      <AdditionalDependencies>advapi32.lib;bmm.lib;comdlg32.lib;core.lib;d3d9.lib;d3dx9.lib;gdi32.lib;geom.lib;kernel32.lib;maxscrpt.lib;maxutil.lib;mesh.lib;odbc32.lib;odbccp32.lib;ole32.lib;oleaut32.lib;Paramblk2.lib;shell32.lib;shlwapi.lib;user32.lib;uuid.lib;version.lib;Winmm.lib;winspool.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <IgnoreSpecificDefaultLibraries></IgnoreSpecificDefaultLibraries>
+      <LargeAddressAware>true</LargeAddressAware>
+      <MapFileName></MapFileName>
+      <ImportLibrary>..\bin\x64\debug\max2w3x.lib</ImportLibrary>
+      <ModuleDefinitionFile>..\w3xmaxtools\w3xmaxtools.def</ModuleDefinitionFile>
+      <CreateHotPatchableImage>Enabled</CreateHotPatchableImage>
     </Link>
-    <ResourceCompile>
-      <Culture>0x0809</Culture>
-    </ResourceCompile>
-    <PostBuildEvent>
-      <Command>
-      </Command>
-    </PostBuildEvent>
-    <PreBuildEvent>
-      <Command>if not exist "$(OutDir)maxpdb" mkdir "$(OutDir)maxpdb"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='profile|x64'">
     <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <ConformanceMode>false</ConformanceMode>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>general.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).$(Configuration).pch</PrecompiledHeaderOutputFile>
-      <PreprocessorDefinitions>W3X;W3D_MAX_TOOLS;_CRT_SECURE_NO_DEPRECATE;_ITERATOR_DEBUG_LEVEL=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;W3D_MAX_TOOLS;W3X;WIN64;_CRT_SECURE_NO_DEPRECATE;_ITERATOR_DEBUG_LEVEL=0;_USRDLL;%(PreprocessorDefinitions);$(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\w3xmaxtools;..\w3xmaxtools\include;$(solutiondir)dep;$(solutiondir)dep\imgui;$(solutiondir)dep\imgui\backends;$(solutiondir)dep\imgui\misc;$(solutiondir)shared;$(solutiondir)shared\source;..\dep\dxsdk_june10\include;..\dep\maxsdk\include;..\memorymanager;..\render\include;..\scripts;..\shared;..\w3dmaxtools\redist;..\w3xmaxtools\redist</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <ShowIncludes>false</ShowIncludes>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)scripts;$(SolutionDir)scripts;$(SolutionDir)MemoryManager;$(SolutionDir)Shared;$(SolutionDir)Render\include</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <SDLCheck>true</SDLCheck>
+      <UseUnicodeForAssemblerListing>false</UseUnicodeForAssemblerListing>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>false</OmitFramePointers>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <UndefineAllPreprocessorDefinitions>false</UndefineAllPreprocessorDefinitions>
+      <IgnoreStandardIncludePath>false</IgnoreStandardIncludePath>
+      <PreprocessToFile>false</PreprocessToFile>
+      <PreprocessSuppressLineNumbers>false</PreprocessSuppressLineNumbers>
+      <PreprocessKeepComments>false</PreprocessKeepComments>
+      <StringPooling>true</StringPooling>
       <ExceptionHandling>Async</ExceptionHandling>
+      <SmallerTypeCheck>false</SmallerTypeCheck>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Precise</FloatingPointModel>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <OpenMPSupport>false</OpenMPSupport>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ExpandAttributedSource>false</ExpandAttributedSource>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <GenerateXMLDocumentationFiles>false</GenerateXMLDocumentationFiles>
+      <BrowseInformation>false</BrowseInformation>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>Default</CompileAs>
+      <AdditionalOptions>/permissive /Zc:__cplusplus</AdditionalOptions>
+      <PrecompiledHeaderFile>w3xmaxtools_pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>intermediate\profilewin64\w3xmaxtools.pch</PrecompiledHeaderOutputFile>
+      <ProgramDatabaseFileName>intermediate\profilewin64\max2w3x_compiler.pdb</ProgramDatabaseFileName>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <ForcedIncludeFiles>w3xmaxtools_pch.h</ForcedIncludeFiles>
+      <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3dx9.lib;shlwapi.lib;version.lib;maxscrpt.lib;mesh.lib;bmm.lib;geom.lib;core.lib;maxutil.lib;Paramblk2.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;Winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <ModuleDefinitionFile>w3xmaxtools.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
-      <MinimumRequiredVersion>6.01</MinimumRequiredVersion>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OutputFile>..\bin\x64\profile\max2w3x.dle</OutputFile>
+      <ShowProgress>NotSet</ShowProgress>
+      <AdditionalLibraryDirectories>..\dep\dxsdk_june10\lib\x64;..\dep\maxsdk\lib\x64\release</AdditionalLibraryDirectories>
+      <ProgramDatabaseFile>..\bin\x64\profile\max2w3x.pdb</ProgramDatabaseFile>
+      <GenerateMapFile>false</GenerateMapFile>
+      <MapExports>false</MapExports>
+      <SwapRunFromCD>false</SwapRunFromCD>
+      <SwapRunFromNET>false</SwapRunFromNET>
+      <Driver>NotSet</Driver>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <ProfileGuidedDatabase>
+      </ProfileGuidedDatabase>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <IgnoreEmbeddedIDL>false</IgnoreEmbeddedIDL>
+      <TypeLibraryResourceID>1</TypeLibraryResourceID>
+      <NoEntryPoint>false</NoEntryPoint>
+      <SetChecksum>false</SetChecksum>
+      <TurnOffAssemblyGeneration>false</TurnOffAssemblyGeneration>
+      <TargetMachine>MachineX64</TargetMachine>
+      <Profile>false</Profile>
+      <CLRImageType>Default</CLRImageType>
+      <LinkErrorReporting>PromptImmediately</LinkErrorReporting>
+      <AdditionalDependencies>advapi32.lib;bmm.lib;comdlg32.lib;core.lib;d3d9.lib;d3dx9.lib;gdi32.lib;geom.lib;kernel32.lib;maxscrpt.lib;maxutil.lib;mesh.lib;odbc32.lib;odbccp32.lib;ole32.lib;oleaut32.lib;Paramblk2.lib;shell32.lib;shlwapi.lib;user32.lib;uuid.lib;version.lib;Winmm.lib;winspool.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <IgnoreSpecificDefaultLibraries></IgnoreSpecificDefaultLibraries>
+      <LargeAddressAware>true</LargeAddressAware>
+      <MapFileName></MapFileName>
+      <ImportLibrary>..\bin\x64\profile\max2w3x.lib</ImportLibrary>
+      <ModuleDefinitionFile>..\w3xmaxtools\w3xmaxtools.def</ModuleDefinitionFile>
     </Link>
-    <ResourceCompile>
-      <Culture>0x0809</Culture>
-    </ResourceCompile>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='release|x64'">
     <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <ConformanceMode>false</ConformanceMode>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>general.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).$(Configuration).pch</PrecompiledHeaderOutputFile>
-      <PreprocessorDefinitions>W3X;W3D_MAX_TOOLS;_CRT_SECURE_NO_DEPRECATE;_ITERATOR_DEBUG_LEVEL=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;W3D_MAX_TOOLS;W3X;WIN64;_CRT_SECURE_NO_DEPRECATE;_ITERATOR_DEBUG_LEVEL=0;_USRDLL;%(PreprocessorDefinitions);$(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\w3xmaxtools;..\w3xmaxtools\include;$(solutiondir)dep;$(solutiondir)dep\imgui;$(solutiondir)dep\imgui\backends;$(solutiondir)dep\imgui\misc;$(solutiondir)shared;$(solutiondir)shared\source;..\dep\dxsdk_june10\include;..\dep\maxsdk\include;..\memorymanager;..\render\include;..\scripts;..\shared;..\w3dmaxtools\redist;..\w3xmaxtools\redist</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <ShowIncludes>false</ShowIncludes>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)scripts;$(SolutionDir)scripts;$(SolutionDir)MemoryManager;$(SolutionDir)Shared;$(SolutionDir)Render\include</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <SDLCheck>true</SDLCheck>
+      <UseUnicodeForAssemblerListing>false</UseUnicodeForAssemblerListing>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <OmitFramePointers>true</OmitFramePointers>
+      <EnableFiberSafeOptimizations>false</EnableFiberSafeOptimizations>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <UndefineAllPreprocessorDefinitions>false</UndefineAllPreprocessorDefinitions>
+      <IgnoreStandardIncludePath>false</IgnoreStandardIncludePath>
+      <PreprocessToFile>false</PreprocessToFile>
+      <PreprocessSuppressLineNumbers>false</PreprocessSuppressLineNumbers>
+      <PreprocessKeepComments>false</PreprocessKeepComments>
+      <StringPooling>true</StringPooling>
       <ExceptionHandling>Async</ExceptionHandling>
+      <SmallerTypeCheck>false</SmallerTypeCheck>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <StructMemberAlignment>Default</StructMemberAlignment>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Precise</FloatingPointModel>
+      <FloatingPointExceptions>false</FloatingPointExceptions>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <ForceConformanceInForLoopScope>true</ForceConformanceInForLoopScope>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <OpenMPSupport>false</OpenMPSupport>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <ExpandAttributedSource>false</ExpandAttributedSource>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <GenerateXMLDocumentationFiles>false</GenerateXMLDocumentationFiles>
+      <BrowseInformation>false</BrowseInformation>
+      <CallingConvention>Cdecl</CallingConvention>
+      <CompileAs>Default</CompileAs>
+      <AdditionalOptions>/permissive /Zc:__cplusplus</AdditionalOptions>
+      <PrecompiledHeaderFile>w3xmaxtools_pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>intermediate\releasewin64\w3xmaxtools.pch</PrecompiledHeaderOutputFile>
+      <ProgramDatabaseFileName>intermediate\releasewin64\max2w3x_compiler.pdb</ProgramDatabaseFileName>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <ForcedIncludeFiles>w3xmaxtools_pch.h</ForcedIncludeFiles>
+      <SupportJustMyCode>false</SupportJustMyCode>
     </ClCompile>
     <Link>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3dx9.lib;shlwapi.lib;version.lib;maxscrpt.lib;mesh.lib;bmm.lib;geom.lib;core.lib;maxutil.lib;Paramblk2.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;Winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <ModuleDefinitionFile>w3xmaxtools.def</ModuleDefinitionFile>
       <SubSystem>Windows</SubSystem>
-      <MinimumRequiredVersion>6.01</MinimumRequiredVersion>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <OutputFile>..\bin\x64\release\max2w3x.dle</OutputFile>
+      <ShowProgress>NotSet</ShowProgress>
+      <AdditionalLibraryDirectories>..\dep\dxsdk_june10\lib\x64;..\dep\maxsdk\lib\x64\release</AdditionalLibraryDirectories>
+      <ProgramDatabaseFile>..\bin\x64\release\max2w3x.pdb</ProgramDatabaseFile>
+      <GenerateMapFile>false</GenerateMapFile>
+      <MapExports>false</MapExports>
+      <SwapRunFromCD>false</SwapRunFromCD>
+      <SwapRunFromNET>false</SwapRunFromNET>
+      <Driver>NotSet</Driver>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <ProfileGuidedDatabase>
+      </ProfileGuidedDatabase>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <IgnoreEmbeddedIDL>false</IgnoreEmbeddedIDL>
+      <TypeLibraryResourceID>1</TypeLibraryResourceID>
+      <NoEntryPoint>false</NoEntryPoint>
+      <SetChecksum>false</SetChecksum>
+      <TurnOffAssemblyGeneration>false</TurnOffAssemblyGeneration>
+      <TargetMachine>MachineX64</TargetMachine>
+      <Profile>false</Profile>
+      <CLRImageType>Default</CLRImageType>
+      <LinkErrorReporting>PromptImmediately</LinkErrorReporting>
+      <AdditionalDependencies>advapi32.lib;bmm.lib;comdlg32.lib;core.lib;d3d9.lib;d3dx9.lib;gdi32.lib;geom.lib;kernel32.lib;maxscrpt.lib;maxutil.lib;mesh.lib;odbc32.lib;odbccp32.lib;ole32.lib;oleaut32.lib;Paramblk2.lib;shell32.lib;shlwapi.lib;user32.lib;uuid.lib;version.lib;Winmm.lib;winspool.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <IgnoreSpecificDefaultLibraries></IgnoreSpecificDefaultLibraries>
+      <LargeAddressAware>true</LargeAddressAware>
+      <MapFileName></MapFileName>
+      <ImportLibrary>..\bin\x64\release\max2w3x.lib</ImportLibrary>
+      <ModuleDefinitionFile>..\w3xmaxtools\w3xmaxtools.def</ModuleDefinitionFile>
     </Link>
-    <ResourceCompile>
-      <Culture>0x0809</Culture>
-    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\w3xmaxtools\pugiconfig.hpp" />
+    <ClInclude Include="..\w3xmaxtools\pugixml.hpp" />
+    <ClInclude Include="..\w3xmaxtools\Redist\Dialog\w3xexportsettingsdlg.h" />
+    <ClInclude Include="..\w3xmaxtools\Redist\w3xappdatachunk.h" />
+    <ClInclude Include="..\w3xmaxtools\Redist\w3xutilities.h" />
+    <ClInclude Include="..\w3xmaxtools\resource.h" />
+    <ClInclude Include="..\w3xmaxtools\w3xmaxtools_pch.h" />
+    <ClInclude Include="..\w3xmaxtools\XMLWriter.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\w3dmaxtools\dxutil.def">
+      <Message Condition="'$(Configuration)|$(Platform)'=='asan|x64'">Building DXUtil</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='asan|x64'">"lib" /DEF:"%(FullPath)" /OUT:"intermediate\asanwin64\dxutil.lib" /MACHINE:X64&#x0D;&#x0A;</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='asan|x64'"></AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='asan|x64'">intermediate\asanwin64\dxutil.lib</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='debug|x64'">Building DXUtil</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='debug|x64'">"lib" /DEF:"%(FullPath)" /OUT:"intermediate\debugwin64\dxutil.lib" /MACHINE:X64&#x0D;&#x0A;</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='debug|x64'"></AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='debug|x64'">intermediate\debugwin64\dxutil.lib</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='profile|x64'">Building DXUtil</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='profile|x64'">"lib" /DEF:"%(FullPath)" /OUT:"intermediate\profilewin64\dxutil.lib" /MACHINE:X64&#x0D;&#x0A;</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='profile|x64'"></AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='profile|x64'">intermediate\profilewin64\dxutil.lib</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='release|x64'">Building DXUtil</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='release|x64'">"lib" /DEF:"%(FullPath)" /OUT:"intermediate\releasewin64\dxutil.lib" /MACHINE:X64&#x0D;&#x0A;</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='release|x64'"></AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='release|x64'">intermediate\releasewin64\dxutil.lib</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\shared\w3d_types.natvis" />
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="..\render\AABTreeBuilderClass.cpp" />
-    <ClCompile Include="..\scripts\ChunkClasses.cpp" />
-    <ClCompile Include="..\scripts\EulerAngles.cpp" />
-    <ClCompile Include="..\scripts\HashTemplateKeyClass.cpp" />
-    <ClCompile Include="..\scripts\Matrix3D.cpp" />
-    <ClCompile Include="..\w3dmaxtools\dxmaterial.cpp" />
-    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dexportdlg.cpp" />
-    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dmaterialpassdlg.cpp" />
-    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dmiscutilitiesdlg.cpp" />
-    <ClCompile Include="pugixml.cpp" />
-    <ClCompile Include="Source\Dialog\w3xexportsettingsdlg.cpp" />
-    <ClCompile Include="Source\w3xappdatachunk.cpp" />
-    <ClCompile Include="Source\w3xutilities.cpp" />
-    <ClInclude Include="..\w3dmaxtools\dxutil.h" />
-    <ClInclude Include="..\w3dmaxtools\Redist\Dialog\w3dmaterialpassdlg.h" />
-    <ClInclude Include="..\w3dmaxtools\Redist\w3dmaterial.h" />
-    <ClInclude Include="general.h" />
-    <ClInclude Include="..\w3dmaxtools\Redist\w3dexport.h" />
-    <ClInclude Include="..\w3dmaxtools\Redist\w3dskin.h" />
     <ClCompile Include="..\scripts\base64.cpp" />
+    <ClCompile Include="..\scripts\ChunkClasses.cpp" />
     <ClCompile Include="..\scripts\Crc32.cpp" />
     <ClCompile Include="..\scripts\CriticalSectionClass.cpp" />
     <ClCompile Include="..\scripts\engine_io.cpp" />
     <ClCompile Include="..\scripts\engine_string.cpp" />
+    <ClCompile Include="..\scripts\engine_string_utils.cpp" />
+    <ClCompile Include="..\scripts\EulerAngles.cpp" />
+    <ClCompile Include="..\scripts\HashTemplateKeyClass.cpp" />
+    <ClCompile Include="..\scripts\Matrix3D.cpp" />
     <ClCompile Include="..\scripts\SimpleFileFactoryClass.cpp" />
     <ClCompile Include="..\scripts\straw.cpp" />
-    <ClCompile Include="..\w3dmaxtools\Source\w3dmaterial.cpp" />
-    <ClCompile Include="general.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">Create</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="..\w3dmaxtools\Source\maxscript.cpp" />
-    <ClInclude Include="RAMFileClass.h" />
-    <ClInclude Include="Redist\Dialog\w3xexportsettingsdlg.h" />
-    <ClInclude Include="Redist\w3xappdatachunk.h" />
-    <ClInclude Include="Redist\w3xutilities.h" />
-    <ClInclude Include="resource.h" />
-    <ClInclude Include="..\w3dmaxtools\Redist\Dialog\w3dmiscutilitiesdlg.h" />
-    <ClInclude Include="..\w3dmaxtools\Redist\w3dmaxcommonhelpers.inl" />
-    <ClInclude Include="..\w3dmaxtools\Redist\w3dmaxcommonhelpers.h" />
-    <ClInclude Include="..\w3dmaxtools\Redist\Dialog\w3dexportdlg.h" />
-    <ClInclude Include="XMLWriter.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\w3dmaxtools\Source\w3dexport.cpp" />
-    <ClCompile Include="..\w3dmaxtools\Source\w3dmaxcommonhelpers.cpp" />
-    <ClCompile Include="..\w3dmaxtools\source\w3dskin.cpp" />
+    <ClCompile Include="..\w3dmaxtools\dxmaterial.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dexportdlg.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dmaterialpassdlg.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\Dialog\w3dmiscutilitiesdlg.cpp" />
     <ClCompile Include="..\w3dmaxtools\Source\dllmain.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Content\dazzle.ini">
-      <Link>%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="w3xmaxtools.def" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="w3xmaxtools.rc">
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-      </AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-      </AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">
-      </AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">_UNICODE;UNICODE;</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">_UNICODE;UNICODE;</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">_UNICODE;UNICODE;</PreprocessorDefinitions>
-      <Culture Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">0x0809</Culture>
-      <Culture Condition="'$(Configuration)|$(Platform)'=='Release|x64'">0x0809</Culture>
-      <Culture Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">0x0809</Culture>
-    </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Image Include="Content\disk.ico" />
-    <Image Include="Content\w3dhublogo.bmp" />
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\w3dmaxtools\dxutil.def">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">false</ExcludedFromBuild>
-      <FileType>Text</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">lib /DEF:..\w3dmaxtools\dxutil.def /OUT:dxutil.lib /MACHINE:X64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">lib /DEF:..\w3dmaxtools\dxutil.def /OUT:dxutil.lib /MACHINE:X64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">lib /DEF:..\w3dmaxtools\dxutil.def /OUT:dxutil.lib /MACHINE:X64</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating dxutil.dll import library</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating dxutil.dll import library</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">Generating dxutil.dll import library</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">dxutil.lib;%(Outputs)</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">dxutil.lib;%(Outputs)</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ASan|x64'">dxutil.lib;%(Outputs)</Outputs>
-    </CustomBuild>
+    <ClCompile Include="..\w3dmaxtools\Source\maxscript.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\w3dexport.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\w3dmaterial.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\w3dmaxcommonhelpers.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\w3dskin.cpp" />
+    <ClCompile Include="..\w3xmaxtools\pugixml.cpp" />
+    <ClCompile Include="..\w3xmaxtools\Source\Dialog\w3xexportsettingsdlg.cpp" />
+    <ClCompile Include="..\w3xmaxtools\Source\w3xappdatachunk.cpp" />
+    <ClCompile Include="..\w3xmaxtools\Source\w3xutilities.cpp" />
+    <ResourceCompile Include="..\w3xmaxtools\w3xmaxtools.rc" />
+    <ClCompile Include="..\w3xmaxtools\w3xmaxtools_pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='asan|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='profile|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

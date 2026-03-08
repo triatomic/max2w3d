@@ -19,7 +19,7 @@ namespace W3D::MaxTools
 		Dazzle,
 		Aggregate,
 		CamZOrient,
-
+		Light,
 		Num
 	};
 

@@ -22,6 +22,7 @@ enum class W3DChunkType : uint32
 	VERTEX_NORMALS                = 0x00000003,
 	MESH_USER_TEXT                = 0x0000000C,
 	VERTEX_INFLUENCES             = 0x0000000E,
+	VERTEX_INFLUENCES_EXTENDED    = 0x00000C03,
 	MESH_HEADER3                  = 0x0000001F,
 	TRIANGLES                     = 0x00000020,
 	VERTEX_SHADE_INDICES          = 0x00000022,
@@ -107,6 +108,7 @@ enum class W3DChunkType : uint32
 	NEAR_ATTENUATION,
 	FAR_ATTENUATION,
 	SPOT_LIGHT_INFO_5_0, // new
+	PULSE,
 	EMITTER                       = 0x00000500,
 	EMITTER_HEADER,
 	EMITTER_USER_DATA,
@@ -133,6 +135,7 @@ enum class W3DChunkType : uint32
 	HLOD_SUB_OBJECT,
 	HLOD_AGGREGATE_ARRAY,
 	HLOD_PROXY_ARRAY,
+	HLOD_LIGHT_ARRAY,
 	BOX                           = 0x00000740,
 	SPHERE,
 	RING,
@@ -734,6 +737,7 @@ static constexpr std::array<const char*, static_cast<size_t>(SURFACE_TYPE::MAX)>
 #define W3D_VERTEX_CHANNEL_TANGENT		0x00000020
 #define W3D_VERTEX_CHANNEL_BINORMAL		0x00000040
 #define W3D_VERTEX_CHANNEL_SMOOTHSKIN		0x00000080
+#define W3D_VERTEX_CHANNEL_SUPERSMOOTHSKIN	0x00000100
 #define W3D_FACE_CHANNEL_FACE				0x00000001
 #define SORT_LEVEL_NONE						0
 #define MAX_SORT_LEVEL						32
@@ -765,6 +769,11 @@ struct W3dVertInfStruct
 {
     uint16 BoneIdx[2];
     uint16 Weight[2];
+};
+struct W3dVertInf3WStruct
+{
+    uint16 BoneIdx[4];
+    uint16 Weight[3]; // w3 = clamp(65535 - (w0 + w1 + w2))
 };
 struct W3dMeshDeform
 {
@@ -1001,6 +1010,16 @@ struct W3dLightAttenuationStruct
 {
 	float				Start;
 	float				End;
+};
+struct W3dLightPulseStruct
+{
+	float MinIntensity;
+	float MaxIntensity;
+	float IntensityTime;
+	float IntensityTimeRandom;
+	float IntensityAdjust;
+	char IntensityStopsAtMax;
+	char IntensityStopsAtMin;
 };
 struct W3dLightTransformStruct
 {
@@ -1324,5 +1343,11 @@ enum
 	CONSTANT_TYPE_INT = 6,
 	CONSTANT_TYPE_BOOL = 7
 };
+
+#ifdef PARAM_EDITING_ON
+	#define SURFACE_TYPE_PARAM(_class, data, name) ENUM_PARAM_FROM_STRING_ARRAY(_class, data, name, SURFACE_TYPE_STRINGS, SURFACE_TYPE::MAX);
+#else
+	#define SURFACE_TYPE_PARAM(_class, data, name)
+#endif
 
 #endif

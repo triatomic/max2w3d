@@ -1,4 +1,3 @@
-#include "general.h"
 #include "platform.h"
 #include "MemoryManager.h"
 #include "FastAllocator.h"
@@ -121,5 +120,18 @@ void operator delete[](void* memory, size_t /*size*/, std::align_val_t align)
 {
 	FastAllocatorGeneral::Get_Allocator()->Free(memory, size_t(align));
 };
+
+[[nodiscard]] void* operator new  (std::size_t size, const std::nothrow_t&) noexcept {
+	return operator new(size);
+}
+[[nodiscard]] void* operator new[](std::size_t size, const std::nothrow_t&) noexcept {
+	return operator new[](size);
+}
+[[nodiscard]] void* operator new  (std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+	return operator new(size, align);
+}
+[[nodiscard]] void* operator new[](std::size_t size, std::align_val_t align, const std::nothrow_t&) noexcept {
+	return operator new[](size, align);
+}
 
 POP_MEMORY_MACROS;

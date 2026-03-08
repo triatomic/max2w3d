@@ -1,4 +1,3 @@
-#include "General.h"
 #include <commdlg.h>
 #include <unordered_map>
 #include <commctrl.h>
@@ -1019,7 +1018,7 @@ FUNC(W3D_CHUNK_EMITTER_PROPS)
 		AddFloat(data, c, opacity[i].Opacity);
 	}
 	W3dEmitterSizeKeyframeStruct *size = (W3dEmitterSizeKeyframeStruct *)(chunkdata + sizeof(W3dEmitterPropertyStruct) + (props->ColorKeyframes * sizeof(W3dEmitterColorKeyframeStruct)) + (props->OpacityKeyframes * sizeof(W3dEmitterOpacityKeyframeStruct)));
-	for (unsigned int i = 0; i < props->OpacityKeyframes; i++)
+	for (unsigned int i = 0; i < props->SizeKeyframes; i++)
 	{
 		char c[256];
 		sprintf(c, "Time[%u]", i);
@@ -1106,6 +1105,10 @@ FUNC(W3D_CHUNK_HLOD_SUB_OBJECT_ARRAY_HEADER)
 	delete[] chunkdata;
 }
 FUNC(W3D_CHUNK_HLOD_PROXY_ARRAY)
+{
+	ParseSubchunks(cload, data);
+}
+FUNC(W3D_CHUNK_HLOD_LIGHT_ARRAY)
 {
 	ParseSubchunks(cload, data);
 }
@@ -1624,7 +1627,20 @@ FUNC(W3D_CHUNK_MESH_HEADER3)
 	{
 		AddString(data, "VertexChannels", "W3D_VERTEX_CHANNEL_SMOOTHSKIN", "flag");
 	}
-	if (header->VertexChannels & 0xFFFFFF00)
+	if (header->VertexChannels & W3D_VERTEX_CHANNEL_SUPERSMOOTHSKIN)
+	{
+		AddString(data, "VertexChannels", "W3D_VERTEX_CHANNEL_SUPERSMOOTHSKIN", "flag");
+	}
+	const uint32 knownVertexChannels = W3D_VERTEX_CHANNEL_LOCATION |
+		W3D_VERTEX_CHANNEL_NORMAL |
+		W3D_VERTEX_CHANNEL_TEXCOORD |
+		W3D_VERTEX_CHANNEL_COLOR |
+		W3D_VERTEX_CHANNEL_BONEID |
+		W3D_VERTEX_CHANNEL_TANGENT |
+		W3D_VERTEX_CHANNEL_BINORMAL |
+		W3D_VERTEX_CHANNEL_SMOOTHSKIN |
+		W3D_VERTEX_CHANNEL_SUPERSMOOTHSKIN;
+	if (header->VertexChannels & ~knownVertexChannels)
 	{
 		StringClass str;
 		str.Format("W3D_CHUNK_MESH_HEADER3 Unknown Vertex Channels %x", header->VertexChannels);
@@ -1850,6 +1866,18 @@ FUNC(W3D_CHUNK_SPOT_LIGHT_INFO_5_0)
 	W3dSpotLightStruct_v5_0 *light = (W3dSpotLightStruct_v5_0*)chunkdata;
 	AddFloat(data, "SpotOuterAngle", light->SpotOuterAngle);
 	AddFloat(data, "SpotInnerAngle", light->SpotInnerAngle);
+	delete[] chunkdata;
+}
+FUNC(W3D_CHUNK_PULSE)
+{
+	char* chunkdata = ReadChunkData(cload);
+	W3dLightPulseStruct* light = (W3dLightPulseStruct*)chunkdata;
+	AddFloat(data, "MinIntensity", light->MinIntensity);
+	AddFloat(data, "MaxIntensity", light->MaxIntensity);
+	AddFloat(data, "IntensityTimeRandom", light->IntensityTimeRandom);
+	AddFloat(data, "IntensityAdjust", light->IntensityAdjust);
+	AddInt8(data, "IntensityStopsAtMax", light->IntensityStopsAtMax);
+	AddInt8(data, "IntensityStopsAtMin", light->IntensityStopsAtMin);
 	delete[] chunkdata;
 }
 FUNC(W3D_CHUNK_STAGE_TEXCOORDS)
@@ -2116,6 +2144,39 @@ FUNC(W3D_CHUNK_VERTEX_INFLUENCES)
 		AddInt16(data, c, vertinf[i].BoneIdx[1]);
 		sprintf(c, "VertexInfluence[%d].Weight[1]", i);
 		AddInt16(data, c, vertinf[i].Weight[1]);
+	}
+	delete[] chunkdata;
+}
+FUNC(W3D_CHUNK_VERTEX_INFLUENCES_EXTENDED)
+{
+	char *chunkdata = ReadChunkData(cload);
+	W3dVertInf3WStruct *vertinf = (W3dVertInf3WStruct *)chunkdata;
+	unsigned int count = cload.Cur_Chunk_Length() / sizeof(W3dVertInf3WStruct);
+	for (unsigned int i = 0; i < count; i++)
+	{
+		char c[256];
+		sprintf(c, "VertexInfluence[%d].BoneIdx[0]", i);
+		AddInt16(data, c, vertinf[i].BoneIdx[0]);
+		sprintf(c, "VertexInfluence[%d].Weight[0]", i);
+		AddInt16(data, c, vertinf[i].Weight[0]);
+		sprintf(c, "VertexInfluence[%d].BoneIdx[1]", i);
+		AddInt16(data, c, vertinf[i].BoneIdx[1]);
+		sprintf(c, "VertexInfluence[%d].Weight[1]", i);
+		AddInt16(data, c, vertinf[i].Weight[1]);
+		sprintf(c, "VertexInfluence[%d].BoneIdx[2]", i);
+		AddInt16(data, c, vertinf[i].BoneIdx[2]);
+		sprintf(c, "VertexInfluence[%d].Weight[2]", i);
+		AddInt16(data, c, vertinf[i].Weight[2]);
+		sprintf(c, "VertexInfluence[%d].BoneIdx[3]", i);
+		AddInt16(data, c, vertinf[i].BoneIdx[3]);
+		uint32 sum = static_cast<uint32>(vertinf[i].Weight[0]) + static_cast<uint32>(vertinf[i].Weight[1]) + static_cast<uint32>(vertinf[i].Weight[2]);
+		uint16 derived = 0;
+		if (sum < 65535u)
+		{
+			derived = static_cast<uint16>(65535u - sum);
+		}
+		sprintf(c, "VertexInfluence[%d].Weight[3]", i);
+		AddInt16(data, c, derived);
 	}
 	delete[] chunkdata;
 }
@@ -2823,6 +2884,7 @@ FUNC(W3D_CHUNK_SOUNDROBJ_DEFINITION)
 					READ_BOOL(15, m_CreateLogicalSound);
 					READ_FLOAT(16, m_LogicalDropoffRadius);
 					READ_VECTOR(17, m_SphereColor);
+					READ_FLOAT(23, m_Doppler);
 				}
 				cload.Close_Micro_Chunk();
 			}
@@ -3459,6 +3521,7 @@ void initmap()
 	CHUNK(W3D_CHUNK_HLOD_LOD_ARRAY);
 	CHUNK(W3D_CHUNK_HLOD_SUB_OBJECT_ARRAY_HEADER);
 	CHUNK(W3D_CHUNK_HLOD_PROXY_ARRAY);
+	CHUNK(W3D_CHUNK_HLOD_LIGHT_ARRAY);
 	CHUNK(W3D_CHUNK_HLOD_SUB_OBJECT);
 	CHUNK(W3D_CHUNK_HMODEL);
 	CHUNK(OBSOLETE_W3D_CHUNK_HMODEL_AUX_DATA);
@@ -3507,6 +3570,7 @@ void initmap()
 	CHUNK(W3D_CHUNK_SKIN_NODE);
 	CHUNK(W3D_CHUNK_SPOT_LIGHT_INFO);
 	CHUNK(W3D_CHUNK_SPOT_LIGHT_INFO_5_0);
+	CHUNK(W3D_CHUNK_PULSE);
 	CHUNK(W3D_CHUNK_STAGE_TEXCOORDS);
 	CHUNK(W3D_CHUNK_SURRENDER_NORMALS);
 	CHUNK(W3D_CHUNK_TEXCOORDS);
@@ -3521,6 +3585,7 @@ void initmap()
 	CHUNK(W3D_CHUNK_TRIANGLES);
 	CHUNK(W3D_CHUNK_VERTEX_COLORS);
 	CHUNK(W3D_CHUNK_VERTEX_INFLUENCES);
+	CHUNK(W3D_CHUNK_VERTEX_INFLUENCES_EXTENDED);
 	CHUNK(W3D_CHUNK_VERTEX_MAPPER_ARGS0);
 	CHUNK(W3D_CHUNK_VERTEX_MAPPER_ARGS1);
 	CHUNK(W3D_CHUNK_VERTEX_MATERIAL);

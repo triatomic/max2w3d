@@ -1,4 +1,3 @@
-#include "general.h"
 #include "FastAllocator.h"
 #pragma warning(push)
 #pragma warning(disable: 4073) // warning C4073: initializers put in library initialization area

@@ -1463,7 +1463,7 @@ XXH3_128bits_reset_withSecretandSeed(XXH3_state_t* statePtr,
  * @internal
  * @brief Modify this function to use a different routine than malloc().
  */
-static void* XXH_malloc(size_t s) { return malloc(s); }
+static void* XXH_malloc(size_t s) { return operator new(s); }
 
 /*!
  * @internal

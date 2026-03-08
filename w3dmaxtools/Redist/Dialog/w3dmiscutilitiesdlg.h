@@ -32,6 +32,7 @@ namespace W3D::MaxTools
 		void DoNodeNameAssignment();
 		void DoMaterialNameAssignment();
 		void DoExtensionNameAssignment();
+		void RenameBones();
 
 		W3DUtilities&     m_Utilities;
 		HWND              m_RollupRoot;

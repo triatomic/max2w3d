@@ -1,4 +1,3 @@
-#include "general.h"
 #include "platform.h"
 #include <intrin.h>
 

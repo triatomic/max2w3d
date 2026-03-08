@@ -1,7 +1,7 @@
-#include "General.h"
 #include "Crc32.h"
 
 #include "fileclass.h"
+#include "engine_string_utils.h"
 
 unsigned long crc_table[256] = {
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3, 
@@ -59,7 +59,7 @@ unsigned long SCRIPTS_API CRC_Stringi(char  const *data, unsigned long crc)
 {
 	crc = ~crc;
 	while (*data != 0)
-		crc = (crc >> 8) ^ crc_table[(crc & 0xFF) ^ toupper(*data++)];
+		crc = (crc >> 8) ^ crc_table[(crc & 0xFF) ^ tt_toupper(*data++)];
 
 	return ~crc;
 }

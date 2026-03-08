@@ -106,18 +106,19 @@
 #define IDS_SURFACE_TYPE_RED_TIBERIUM   183
 #define IDS_SURFACE_TYPE_TIBERIUM_VEINS 184
 #define IDS_SURFACE_TYPE_LASER          185
-#define IDS_SURFACE_TYPE_SNOW_PERMIABLE               186
-#define IDS_SURFACE_TYPE_ELECTRICAL_GLASS                   187
-#define IDS_SURFACE_TYPE_ELECTRICAL_GLASS_PERMEABLE                   188
-#define IDS_SURFACE_TYPE_SLUSH                   189
-#define IDS_SURFACE_TYPE_EXTRA_1                   190
-#define IDS_SURFACE_TYPE_EXTRA_2                   191
-#define IDS_SURFACE_TYPE_EXTRA_3                   192
-#define IDS_SURFACE_TYPE_EXTRA_4                   193
-#define IDS_SURFACE_TYPE_EXTRA_5                   194
-#define IDS_SURFACE_TYPE_EXTRA_6                   195
-#define IDS_SURFACE_TYPE_EXTRA_7                   196
-#define IDS_SURFACE_TYPE_EXTRA_8                   197
+#define IDS_SURFACE_TYPE_SNOW_PERMIABLE 186
+#define IDS_SURFACE_TYPE_ELECTRICAL_GLASS 187
+#define IDS_SURFACE_TYPE_ELECTRICAL_GLASS_PERMEABLE 188
+#define IDS_SURFACE_TYPE_SLUSH          189
+#define IDS_SURFACE_TYPE_EXTRA_1        190
+#define IDS_SURFACE_TYPE_EXTRA_2        191
+#define IDS_SURFACE_TYPE_EXTRA_3        192
+#define IDS_SURFACE_TYPE_EXTRA_4        193
+#define IDS_SURFACE_TYPE_EXTRA_5        194
+#define IDS_SURFACE_TYPE_EXTRA_6        195
+#define IDS_SURFACE_TYPE_EXTRA_7        196
+#define IDS_SURFACE_TYPE_EXTRA_8        197
+#define IDS_RESIZE                      198
 #define IDC_SURFACE_TYPE                1007
 #define IDC_STATIC_SORT_ON              1008
 #define IDC_STATIC_SORT_LVL_SPIN        1010
@@ -197,14 +198,17 @@
 #define IDC_TWO_SIDED                   1077
 #define IDC_BLEND_ALPHA_TEST            1078
 #define IDC_HIDE                        1078
+#define IDC_STAGE_0_RESIZE              1078
 #define IDC_BLEND_MODE                  1079
 #define IDC_Z_NORMAL                    1079
+#define IDC_STAGE_1_RESIZE              1079
 #define IDC_KEEP_NORMAL                 1080
 #define IDC_VALPHA                      1081
 #define IDC_SHADOW                      1082
 #define IDC_SHATTER                     1083
 #define IDC_TANGENTS                    1084
 #define IDC_GEOM_CAMERA_Z_ORIENTED      1085
+#define IDC_GEOM_LIGHT                  1086
 #define IDC_DAZZLE_MODE                 1087
 #define IDC_STATIC_SORTING              1088
 #define IDC_PHYSICAL                    1089
@@ -223,6 +227,7 @@
 #define IDC_SELECT_PHYS                 1103
 #define IDC_SELECT_PROJ                 1104
 #define IDC_SELECT_VIS                  1105
+#define IDC_RENAME_BONES                1106
 #define IDC_ROOT_NAME                   1107
 #define IDC_ASSIGN_NAMES                1108
 #define IDC_PREFIX                      1109
@@ -260,6 +265,7 @@
 #define IDC_SCREEN_EDIT                 1148
 #define IDC_SCREEN_SPIN                 1149
 #define IDC_SCREEN_LABEL                1150
+#define IDC_MIKKTSPACE                  1151
 #define IDC_LOG                         1198
 
 // Next default values for new objects

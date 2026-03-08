@@ -1,4 +1,3 @@
-#include "General.h"
 #include "base64.h"
 
 //encode size is ((input_size - 1) / 3) * 4 + 4 plus 1 for \0 terminator

@@ -1,4 +1,3 @@
-#include "general.h"
 #include <stdmat.h>
 #include "Dialog/w3dmaterialpassdlg.h"
 #include "w3dmaterial.h"
@@ -585,6 +584,7 @@ namespace W3D::MaxTools
 		UpdateTexmapButtonText(m_Stage0TextureMap, *dialog.m_ParamBlock, W3DMaterialParamID::Stage0TextureMap);
 
 		m_Stage0Publish = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_0_PUBLISH), *dialog.m_ParamBlock, W3DMaterialParamID::Stage0Publish);
+		m_Stage0Resize = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_0_RESIZE), *dialog.m_ParamBlock, W3DMaterialParamID::Stage0Resize);
 		m_Stage0Display = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_0_DISPLAY), *dialog.m_ParamBlock, W3DMaterialParamID::Stage0Display);
 		m_Stage0ClampU = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_0_CLAMP_U), *dialog.m_ParamBlock, W3DMaterialParamID::Stage0ClampU);
 		m_Stage0ClampV = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_0_CLAMP_V), *dialog.m_ParamBlock, W3DMaterialParamID::Stage0ClampV);
@@ -603,6 +603,7 @@ namespace W3D::MaxTools
 		UpdateTexmapButtonText(m_Stage1TextureMap, *dialog.m_ParamBlock, W3DMaterialParamID::Stage1TextureMap);
 
 		m_Stage1Publish = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_1_PUBLISH), *dialog.m_ParamBlock, W3DMaterialParamID::Stage1Publish);
+		m_Stage1Resize = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_1_RESIZE), *dialog.m_ParamBlock, W3DMaterialParamID::Stage1Resize);
 		m_Stage1Display = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_1_DISPLAY), *dialog.m_ParamBlock, W3DMaterialParamID::Stage1Display);
 		m_Stage1ClampU = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_1_CLAMP_U), *dialog.m_ParamBlock, W3DMaterialParamID::Stage1ClampU);
 		m_Stage1ClampV = InitCheckButton(GetDlgItem(tabRoot, IDC_STAGE_1_CLAMP_V), *dialog.m_ParamBlock, W3DMaterialParamID::Stage1ClampV);
@@ -670,6 +671,7 @@ namespace W3D::MaxTools
 
 		m_Stage0TextureMap->Enable(enabled);
 		m_Stage0Publish->Enable(enabled);
+		m_Stage0Resize->Enable(enabled);
 		m_Stage0Display->Enable(enabled);
 		m_Stage0ClampU->Enable(enabled);
 		m_Stage0ClampV->Enable(enabled);
@@ -692,6 +694,7 @@ namespace W3D::MaxTools
 
 		m_Stage1TextureMap->Enable(enabled);
 		m_Stage1Publish->Enable(enabled);
+		m_Stage1Resize->Enable(enabled);
 		m_Stage1Display->Enable(enabled);
 		m_Stage1ClampU->Enable(enabled);
 		m_Stage1ClampV->Enable(enabled);
@@ -777,6 +780,12 @@ namespace W3D::MaxTools
 					return TRUE;
 				case IDC_STAGE_1_DISPLAY:
 					dlg->m_Dialog.SetDisplayFlag(*dlg->m_Stage1Display, W3DMaterialParamID::Stage1Display);
+					return TRUE;
+				case IDC_STAGE_0_RESIZE:
+					dlg->m_Dialog.SetValue(W3DMaterialParamID::Stage0Resize, dlg->m_Stage0Resize->IsChecked());
+					return TRUE;
+				case IDC_STAGE_1_RESIZE:
+					dlg->m_Dialog.SetValue(W3DMaterialParamID::Stage1Resize, dlg->m_Stage1Resize->IsChecked());
 					return TRUE;
 				} //sw controlID
 				break;

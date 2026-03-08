@@ -9,11 +9,11 @@ template <typename T1, class T2> class IndexClass {
 		NodeElement() : ID(0), Data(0)
 		{
 		}
-		bool operator==(NodeElement const &elem)
+		bool operator==(NodeElement const &elem) const
 		{
 			return ID == elem.ID;
 		}
-		bool operator<(NodeElement const &elem)
+		bool operator<(NodeElement const &elem) const
 		{
 			return ID < elem.ID;
 		}

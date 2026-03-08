@@ -1,4 +1,3 @@
-#include "general.h"
 #include <stdmat.h>
 #include "w3dmaterial.h"
 
@@ -337,6 +336,10 @@ namespace W3D::MaxTools
 		p_default, false,
 		p_end,
 
+		enum_to_value(W3DMaterialParamID::Stage0Resize), _T("stage0resize"), TYPE_BOOL, 0, IDS_RESIZE,
+		p_default, false,
+		p_end,
+
 		enum_to_value(W3DMaterialParamID::Stage0Display), _T("stage0display"), TYPE_BOOL, 0, IDS_DISPLAY,
 		p_default, false,
 		p_end,
@@ -386,6 +389,10 @@ namespace W3D::MaxTools
 		p_end,
 
 		enum_to_value(W3DMaterialParamID::Stage1Publish), _T("stage1publish"), TYPE_BOOL, 0, IDS_PUBLISH,
+		p_default, false,
+		p_end,
+
+		enum_to_value(W3DMaterialParamID::Stage1Resize), _T("stage1resize"), TYPE_BOOL, 0, IDS_RESIZE,
 		p_default, false,
 		p_end,
 
@@ -512,7 +519,9 @@ namespace W3D::MaxTools
 		{TYPE_INT, nullptr, 0, (DWORD)enum_to_value(W3DMaterialParamID::Stage1MappingUVChannel) },
 		{TYPE_INT, nullptr, 0, (DWORD)enum_to_value(W3DMaterialParamID::Stage1Mapping) },
 		{TYPE_BOOL, nullptr, 0, (DWORD)enum_to_value(W3DMaterialParamID::Stage0NoLOD) },
-		{TYPE_BOOL, nullptr, 0, (DWORD)enum_to_value(W3DMaterialParamID::Stage1NoLOD) }
+		{TYPE_BOOL, nullptr, 0, (DWORD)enum_to_value(W3DMaterialParamID::Stage1NoLOD) },
+		{TYPE_BOOL, nullptr, 0, (DWORD)enum_to_value(W3DMaterialParamID::Stage0Resize) },
+		{TYPE_BOOL, nullptr, 0, (DWORD)enum_to_value(W3DMaterialParamID::Stage1Resize) }
 	};
 
 	class W3DMaterialPostLoad : public PostLoadCallback

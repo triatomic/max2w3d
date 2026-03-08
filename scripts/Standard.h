@@ -47,7 +47,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <float.h>
-#include <emmintrin.h>
+#include <intrin.h>
 #include <math.h>
 #include <memory>
 #include <new>
@@ -62,10 +62,14 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <type_traits>
+#include <variant>
 
 #include <windows.h>
 
 #include "MemoryManager.h"
 #include "Profiler.h"
+
+#include <sanitizer/asan_interface.h>
 
 #endif

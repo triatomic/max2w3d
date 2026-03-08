@@ -249,6 +249,7 @@ public:
 
 	int Seek(int offset, int origin) override
 	{
+		TT_ASSERT(Is_Open());
 		if (BiasLength != -1)
 		{
 			if (origin == ORIGIN_CURRENT && offset == 0)

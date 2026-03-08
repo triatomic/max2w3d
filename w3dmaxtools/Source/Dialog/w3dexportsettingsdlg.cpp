@@ -1,4 +1,3 @@
-#include "general.h"
 #include <maxheapdirect.h>
 #include <iInstanceMgr.h>
 #include <sstream>
@@ -27,7 +26,8 @@ namespace
 			IDC_GEOM_NULL_LOD,
 			IDC_GEOM_DAZZLE,
 			IDC_GEOM_AGGREGATE,
-			IDC_GEOM_CAMERA_Z_ORIENTED
+			IDC_GEOM_CAMERA_Z_ORIENTED,
+			IDC_GEOM_LIGHT
 		};
 
 		return s_ids;
@@ -265,6 +265,9 @@ namespace W3D::MaxTools
 				return TRUE;
 			case IDC_GEOM_CAMERA_Z_ORIENTED:
 				SetGeometryType(W3DGeometryType::CamZOrient);
+				return TRUE;
+			case IDC_GEOM_LIGHT:
+				SetGeometryType(W3DGeometryType::Light);
 				return TRUE;
 
 				//Export Flags

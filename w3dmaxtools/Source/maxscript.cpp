@@ -1,4 +1,3 @@
-#include "general.h"
 #include <stdmat.h>
 #include <iInstanceMgr.h>
 #include <maxscript\maxscript.h>
@@ -407,6 +406,27 @@ Value *wwSetShadow_cf(Value ** arg_list, int count)
 	return &ok;
 }
 
+def_visible_primitive(wwGetVAlpha, "wwGetVAlpha");
+Value* wwGetVAlpha_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetVAlpha, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).GeometryFlags & W3DGeometryFlags::VAlpha) == W3DGeometryFlags::VAlpha)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
+
 def_visible_primitive(wwSetVAlpha, "wwSetVAlpha");
 Value *wwSetVAlpha_cf(Value ** arg_list, int count)
 {
@@ -440,6 +460,27 @@ Value *wwSetVAlpha_cf(Value ** arg_list, int count)
 		}
 	}
 	return &ok;
+}
+
+def_visible_primitive(wwGetZNormal, "wwGetZNormal");
+Value* wwGetZNormal_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetZNormal, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).GeometryFlags & W3DGeometryFlags::ZNormal) == W3DGeometryFlags::ZNormal)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
 }
 
 def_visible_primitive(wwSetZNormal, "wwSetZNormal");
@@ -478,6 +519,27 @@ Value *wwSetZNormal_cf(Value ** arg_list, int count)
 }
 
 #ifndef W3X
+def_visible_primitive(wwGetShatter, "wwGetShatter");
+Value* wwGetShatter_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetShatter, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).GeometryFlags & W3DGeometryFlags::Shatter) == W3DGeometryFlags::Shatter)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
+
 def_visible_primitive(wwSetShatter, "wwSetShatter");
 Value *wwSetShatter_cf(Value ** arg_list, int count)
 {
@@ -511,6 +573,27 @@ Value *wwSetShatter_cf(Value ** arg_list, int count)
 		}
 	}
 	return &ok;
+}
+
+def_visible_primitive(wwGetNPatch, "wwGetNPatch");
+Value* wwGetNPatch_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetNPatch, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).GeometryFlags & W3DGeometryFlags::Tangents) == W3DGeometryFlags::Tangents)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
 }
 
 def_visible_primitive(wwSetNPatch, "wwSetNPatch");
@@ -548,6 +631,27 @@ Value *wwSetNPatch_cf(Value ** arg_list, int count)
 	return &ok;
 }
 
+def_visible_primitive(wwGetPrelit, "wwGetPrelit");
+Value* wwGetPrelit_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetPrelit, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).GeometryFlags & W3DGeometryFlags::Prelit) == W3DGeometryFlags::Prelit)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
+
 def_visible_primitive(wwSetPrelit, "wwSetPrelit");
 Value *wwSetPrelit_cf(Value ** arg_list, int count)
 {
@@ -583,6 +687,27 @@ Value *wwSetPrelit_cf(Value ** arg_list, int count)
 	return &ok;
 }
 #else
+def_visible_primitive(wwGetJoypadPick, "wwGetJoypadPick");
+Value* wwGetJoypadPick_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetJoypadPick, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).GeometryFlags & W3DGeometryFlags::JoypadPick) == W3DGeometryFlags::JoypadPick)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
+
 def_visible_primitive(wwSetJoypadPick, "wwSetJoypadPick");
 Value* wwSetJoypadPick_cf(Value** arg_list, int count)
 {
@@ -618,6 +743,27 @@ Value* wwSetJoypadPick_cf(Value** arg_list, int count)
 	return &ok;
 }
 #endif
+
+def_visible_primitive(wwGetKeepNormal, "wwGetKeepNormal");
+Value* wwGetKeepNormal_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetKeepNormal, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).GeometryFlags & W3DGeometryFlags::KeepNml) == W3DGeometryFlags::KeepNml)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
 
 def_visible_primitive(wwSetKeepNormal, "wwSetKeepNormal");
 Value *wwSetKeepNormal_cf(Value ** arg_list, int count)
@@ -655,6 +801,27 @@ Value *wwSetKeepNormal_cf(Value ** arg_list, int count)
 }
 
 #ifndef W3X
+def_visible_primitive(wwGetCollidePhysical, "wwGetCollidePhysical");
+Value* wwGetCollidePhysical_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetCollidePhysical, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).CollisionFlags & W3DCollisionFlags::Physical) == W3DCollisionFlags::Physical)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
+
 def_visible_primitive(wwSetCollidePhysical, "wwSetCollidePhysical");
 Value *wwSetCollidePhysical_cf(Value ** arg_list, int count)
 {
@@ -688,6 +855,27 @@ Value *wwSetCollidePhysical_cf(Value ** arg_list, int count)
 		}
 	}
 	return &ok;
+}
+
+def_visible_primitive(wwGetCollideProjectile, "wwGetCollideProjectile");
+Value* wwGetCollideProjectile_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetCollideProjectile, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).CollisionFlags & W3DCollisionFlags::Projectile) == W3DCollisionFlags::Projectile)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
 }
 
 def_visible_primitive(wwSetCollideProjectile, "wwSetCollideProjectile");
@@ -725,6 +913,27 @@ Value *wwSetCollideProjectile_cf(Value ** arg_list, int count)
 	return &ok;
 }
 
+def_visible_primitive(wwGetCollideVis, "wwGetCollideVis");
+Value* wwGetCollideVis_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetCollideVis, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).CollisionFlags & W3DCollisionFlags::Vis) == W3DCollisionFlags::Vis)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
+
 def_visible_primitive(wwSetCollideVis, "wwSetCollideVis");
 Value *wwSetCollideVis_cf(Value ** arg_list, int count)
 {
@@ -760,6 +969,27 @@ Value *wwSetCollideVis_cf(Value ** arg_list, int count)
 	return &ok;
 }
 
+def_visible_primitive(wwGetCollideCamera, "wwGetCollideCamera");
+Value* wwGetCollideCamera_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetCollideCamera, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).CollisionFlags & W3DCollisionFlags::Camera) == W3DCollisionFlags::Camera)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
+}
+
 def_visible_primitive(wwSetCollideCamera, "wwSetCollideCamera");
 Value *wwSetCollideCamera_cf(Value ** arg_list, int count)
 {
@@ -793,6 +1023,27 @@ Value *wwSetCollideCamera_cf(Value ** arg_list, int count)
 		}
 	}
 	return &ok;
+}
+
+def_visible_primitive(wwGetCollideVehicle, "wwGetCollideVehicle");
+Value* wwGetCollideVehicle_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwGetCollideVehicle, 1, count);
+	if (!is_node(arg_list[0]))
+	{
+		throw TypeError(L"Max INode", arg_list[0], class_tag(MAXNode));
+	}
+	INode* node = arg_list[0]->to_node();
+	INodeTab nodes;
+	IInstanceMgr::GetInstanceMgr()->GetInstances(*node, nodes);
+	for (int i = 0; i < nodes.Count(); ++i)
+	{
+		if ((W3DUtilities::GetOrCreateW3DAppDataChunk(*nodes[i]).CollisionFlags & W3DCollisionFlags::Vehicle) == W3DCollisionFlags::Vehicle)
+		{
+			return &true_value;
+		}
+	}
+	return &false_value;
 }
 
 def_visible_primitive(wwSetCollideVehicle, "wwSetCollideVehicle");
@@ -1653,6 +1904,39 @@ Value *wwSetPublish_cf(Value ** arg_list, int count)
 	{
 		W3DMaterial *gm = (W3DMaterial *)mtl;
 		gm->GetMaterialPass(pass).ParamBlock->SetValue(enum_to_value(stage ? W3DMaterialParamID::Stage1Publish : W3DMaterialParamID::Stage0Publish), 0, value);
+		gm->MaterialDirty();
+	}
+	return &ok;
+}
+
+def_visible_primitive(wwSetResize, "wwSetResize");
+Value* wwSetResize_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwSetResize, 4, count);
+	if (!is_material(arg_list[0]))
+	{
+		throw TypeError(L"W3D Material", arg_list[0], class_tag(MAXMaterial));
+	}
+	if (!is_number(arg_list[1]))
+	{
+		throw TypeError(L"Pass", arg_list[1], class_tag(Integer));
+	}
+	if (!is_number(arg_list[2]))
+	{
+		throw TypeError(L"Stage", arg_list[2], class_tag(Integer));
+	}
+	if (!is_bool(arg_list[3]))
+	{
+		throw TypeError(L"Value", arg_list[3], class_tag(Boolean));
+	}
+	Mtl* mtl = arg_list[0]->to_mtl();
+	int pass = arg_list[1]->to_int();
+	int stage = arg_list[2]->to_int();
+	BOOL value = arg_list[3]->to_bool();
+	if (mtl->ClassID() == W3DMaterialClassDesc::Instance()->ClassID())
+	{
+		W3DMaterial* gm = (W3DMaterial*)mtl;
+		gm->GetMaterialPass(pass).ParamBlock->SetValue(enum_to_value(stage ? W3DMaterialParamID::Stage1Resize : W3DMaterialParamID::Stage0Resize), 0, value);
 		gm->MaterialDirty();
 	}
 	return &ok;
@@ -2528,6 +2812,8 @@ Value *wwSetTexFlags_cf(Value ** arg_list, int count)
 		W3DMaterial *gm = (W3DMaterial *)mtl;
 		int p = (value & W3DTEXTURE_PUBLISH);
 		gm->GetMaterialPass(pass).ParamBlock->SetValue(enum_to_value(stage ? W3DMaterialParamID::Stage1Publish : W3DMaterialParamID::Stage0Publish), 0, p == 1);
+		int r = (value & W3DTEXTURE_RESIZE_OBSOLETE);
+		gm->GetMaterialPass(pass).ParamBlock->SetValue(enum_to_value(stage ? W3DMaterialParamID::Stage1Resize : W3DMaterialParamID::Stage0Resize), 0, r == 1);
 		int n = (value & W3DTEXTURE_NO_LOD);
 		gm->GetMaterialPass(pass).ParamBlock->SetValue(enum_to_value(stage ? W3DMaterialParamID::Stage1NoLOD : W3DMaterialParamID::Stage0NoLOD), 0, n == 1);
 		int u = (value & W3DTEXTURE_CLAMP_U);
@@ -2566,6 +2852,7 @@ Value *wwGetTexFlags_cf(Value ** arg_list, int count)
 	{
 		W3DMaterial *gm = (W3DMaterial *)mtl;
 		int p = gm->GetMaterialPass(pass).ParamBlock->GetInt(enum_to_value(stage ? W3DMaterialParamID::Stage1Publish : W3DMaterialParamID::Stage0Publish), 0) == 1 ? W3DTEXTURE_PUBLISH : 0;
+		int r = gm->GetMaterialPass(pass).ParamBlock->GetInt(enum_to_value(stage ? W3DMaterialParamID::Stage1Resize : W3DMaterialParamID::Stage0Resize), 0) == 1 ? W3DTEXTURE_RESIZE_OBSOLETE : 0;
 		int n = gm->GetMaterialPass(pass).ParamBlock->GetInt(enum_to_value(stage ? W3DMaterialParamID::Stage1NoLOD : W3DMaterialParamID::Stage0NoLOD), 0) == 1 ? W3DTEXTURE_NO_LOD : 0;
 		int u = gm->GetMaterialPass(pass).ParamBlock->GetInt(enum_to_value(stage ? W3DMaterialParamID::Stage1ClampU : W3DMaterialParamID::Stage0ClampU), 0) == 1 ? W3DTEXTURE_CLAMP_U : 0;
 		int v = gm->GetMaterialPass(pass).ParamBlock->GetInt(enum_to_value(stage ? W3DMaterialParamID::Stage1ClampV : W3DMaterialParamID::Stage0ClampV), 0) == 1 ? W3DTEXTURE_CLAMP_V : 0;

@@ -1,4 +1,3 @@
-#include "general.h"
 
 #include "SimpleFileFactoryClass.h"
 #include "w3dexport.h"
