@@ -9,17 +9,49 @@ namespace
 {
 	void UpdateTexmapButtonText(ICustButton* button, IParamBlock2& pb, W3D::MaxTools::W3DMaterialParamID param)
 	{
-		BitmapTex* tm = static_cast<BitmapTex*>(pb.GetTexmap(enum_to_value(param)));
-		if (tm && tm->GetMapName())
+		// Stage slots accept any Texmap, but only BitmapTex has GetMapName().
+		// Unconditionally static_cast<BitmapTex*>'ing was unsafe — connecting
+		// a non-bitmap (Color Correction, Output, Composite, Mix, …) and then
+		// triggering a refresh would call GetMapName via the wrong vtable and
+		// crash. Gate on the actual class id; for non-bitmaps fall back to
+		// the texmap's class name (matches what Max shows in its texmap browser).
+		//
+		// The whole body is wrapped in try/catch because we get called from
+		// REFMSG_CHANGE handlers that fire while a bitmap is mid-edit (e.g.
+		// mono channel flipping between RGB/Alpha). In that transient state
+		// GetMapName / SplitPathFile / SetText can throw, and an unwound C++
+		// exception out of a notification handler into Max's dispatch loop
+		// will crash the host.
+		if (button == nullptr) return;
+		try
 		{
-			MSTR path;
-			MSTR fname;
-			SplitPathFile(tm->GetMapName(), &path, &fname);
-			button->SetText(fname.data());
+			Texmap* base = pb.GetTexmap(enum_to_value(param));
+			if (base == nullptr)
+			{
+				button->SetText(_T("None"));
+				return;
+			}
+			if (base->ClassID() == Class_ID(BMTEX_CLASS_ID, 0))
+			{
+				BitmapTex* bm = static_cast<BitmapTex*>(base);
+				const MCHAR* mapName = bm->GetMapName();
+				if (mapName && *mapName)
+				{
+					MSTR path, fname;
+					SplitPathFile(mapName, &path, &fname);
+					button->SetText(fname.data());
+					return;
+				}
+			}
+			// Non-bitmap or empty bitmap — fall back to the texmap's class name.
+			MSTR name;
+			base->GetClassName(name, false);
+			button->SetText(name.data());
 		}
-		else
+		catch (...)
 		{
-			button->SetText(_T("None"));
+			// Best-effort fallback; never propagate into Max's REFMSG dispatcher.
+			try { button->SetText(_T("…")); } catch (...) {}
 		}
 	}
 
