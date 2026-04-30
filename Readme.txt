@@ -15,3 +15,7 @@ The code is licensed under the GNU GPL version 3.0 as described in gpl-3.0.txt
 
 In addition to the GNU GPL version 3.0 you are granted a specific exemption to allow linking of the source code for max2w3d.dle with the binaries from any 3D program (including any 3rd party plugins you may have installed) provided the source code to your
 modified version of max2w3d.dle (or whatever plugin you are writing that includes code from max2w3d.dle) is released in accordance with the GNU GPL version 3.0
+
+Building Latest Source:
+git clone -b wwskin-bundle https://github.com/triatomic/max2w3d
+compile with VisualStudio 2022 adhere to the compilation steps above.
