@@ -136,3 +136,15 @@ git clone -b wwskin-bundle https://github.com/triatomic/max2w3d
 ```
 
 Then compile using **Visual Studio 2022** and follow the setup steps above.
+
+⚖️ LEGAL DISCLAIMER & COPYRIGHT NOTICE
+Nature of the Project
+This project is a community-driven, derivative modification of independently reverse-engineered W3D Tools. It is provided strictly for non-commercial, educational, and community modding purposes.
+Incorporation of Open-Source Code
+Portions of this software incorporate source code officially released by Electronic Arts Inc. under the GNU General Public License Version 3 (GPLv3). Specifically, this pertains to verbatim vertex/face data and implementation logic regarding the WWSkin bone meshes.
+Intellectual Property Acknowledgment
+All rights, title, and interest regarding the W3D file format, original proprietary source code, and associated proprietary assets remain the exclusive property of Electronic Arts Inc. "Command & Conquer", "C&C", "Generals", "Zero Hour", and related logos are registered trademarks of Electronic Arts Inc.
+Non-Affiliation
+This project is an unofficial community tool. It is not affiliated with, authorized by, endorsed by, or sponsored by Electronic Arts Inc. or any of its subsidiaries.
+No Warranty (As-Is Clause)
+THIS SOFTWARE IS PROVIDED BY THE CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE.
