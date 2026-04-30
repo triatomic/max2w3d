@@ -1,5 +1,6 @@
 #include <unordered_set>
 #include <iInstanceMgr.h>
+#include <modstack.h>
 #include "Dialog/w3dmiscutilitiesdlg.h"
 #include "resource.h"
 #ifndef W3X
@@ -60,15 +61,109 @@ namespace W3D::MaxTools
 		m_DialogRoot = dialogRoot;
 	}
 
+	// Walks past any modifier stack to the base object. Returns nullptr if the
+	// node has no object ref (e.g. group head with no representation).
+	static Object* GetBaseObject(INode& node)
+	{
+		Object* obj = node.GetObjectRef();
+		while (obj && obj->SuperClassID() == GEN_DERIVOB_CLASS_ID)
+		{
+			obj = ((IDerivedObject*)obj)->GetObjRef();
+		}
+		return obj;
+	}
+
+	// Modern 3ds Max "Bone" object — the kind `bone()` creates from MAXScript
+	// or that gets imported when the W3D importer's "max skin" auto-bind is
+	// chosen. Its SuperClassID is GEOMOBJECT_CLASS_ID (it's drawn as a tapered
+	// cylinder), but the Class_ID is the documented BONE_OBJ_CLASSID. This
+	// distinction is what lets Select Geometry exclude these.
+	static bool IsMaxBoneNode(INode& node)
+	{
+		if (node.IsGroupHead()) return false;
+		Object* obj = GetBaseObject(node);
+		return obj && obj->ClassID() == BONE_OBJ_CLASSID;
+	}
+
+	// W3D-style "bone": a helper or legacy-bone-superclass node. These are the
+	// dummies / point helpers / older BONE_CLASS_ID instances used as W3D
+	// pivots when the importer auto-binds via WWSkin (or when the user authored
+	// a hierarchy by hand from helpers).
+	static bool IsW3DBoneNode(INode& node)
+	{
+		if (node.IsGroupHead()) return false;
+		Object* obj = GetBaseObject(node);
+		if (!obj) return false;
+		const SClass_ID sc = obj->SuperClassID();
+		return sc == HELPER_CLASS_ID || sc == BONE_CLASS_ID;
+	}
+
+	// Render geometry — true GeomObject sub-classes only, but excludes
+	// BONE_OBJ_CLASSID so a Max-bones rig isn't lumped in with meshes.
+	static bool IsGeometryNode(INode& node)
+	{
+		if (node.IsGroupHead()) return false;
+		Object* obj = GetBaseObject(node);
+		if (!obj) return false;
+		if (obj->SuperClassID() != GEOMOBJECT_CLASS_ID) return false;
+		if (obj->ClassID() == BONE_OBJ_CLASSID) return false;
+		return true;
+	}
+
+	// Kept for older call sites (none currently): renamed-thru alias.
+	static bool IsBoneNode(INode& node) { return IsW3DBoneNode(node); }
+
+	// Recursively scans a material tree (including Multi/Sub-Object containers)
+	// for any W3DMaterial pass that has either stage's "Alpha Bitmap" flag on.
+	// The original Select Alpha Meshes only inspected node->GetMtl() directly,
+	// so a Multi/Sub-Object root would never reach the W3DMaterial check.
+	static bool MaterialContainsAlpha(Mtl* mtl, std::unordered_set<Mtl*>& visited)
+	{
+		if (!mtl || visited.count(mtl)) return false;
+		visited.insert(mtl);
+
+		if (mtl->ClassID() == W3DMaterialClassDesc::Instance()->ClassID())
+		{
+			W3DMaterial* w3dmtl = static_cast<W3DMaterial*>(mtl);
+			const int numActivePasses = w3dmtl->NumActivePasses();
+			for (int j = 0; j < numActivePasses; ++j)
+			{
+				IParamBlock2* pb = w3dmtl->GetMaterialPass(j).ParamBlock;
+				if (pb &&
+					(pb->GetInt(enum_to_value(W3DMaterialParamID::Stage0AlphaBitmap)) ||
+					 pb->GetInt(enum_to_value(W3DMaterialParamID::Stage1AlphaBitmap))))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// Walk sub-materials (Multi/Sub-Object, Composite, Blend, etc.).
+		for (int i = 0; i < mtl->NumSubMtls(); ++i)
+		{
+			if (MaterialContainsAlpha(mtl->GetSubMtl(i), visited))
+				return true;
+		}
+		return false;
+	}
+
 	INT_PTR W3DMiscUtilitiesDlg::HandleCommand(uint16 controlID, uint16 commandID)
 	{
 		switch (controlID)
 		{
 		case IDC_SELECT_GEOMETRY:
-			SetSelectionOnExportFlags(W3DExportFlags::ExportGeometry);
+			SelectByPredicate([](INode& n) {
+				return IsGeometryNode(n) && enum_has_flags(
+					W3DUtilities::GetOrCreateW3DAppDataChunk(n).ExportFlags,
+					W3DExportFlags::ExportGeometry);
+			});
 			return TRUE;
 		case IDC_SELECT_BONES:
-			SetSelectionOnExportFlags(W3DExportFlags::ExportTransform);
+			SelectByPredicate([](INode& n) { return IsW3DBoneNode(n); });
+			return TRUE;
+		case IDC_SELECT_MAX_BONES:
+			SelectByPredicate([](INode& n) { return IsMaxBoneNode(n); });
 			return TRUE;
 		case IDC_SELECT_ALPHA_MESHES:
 			SelectAlphaObjects();
@@ -157,34 +252,25 @@ namespace W3D::MaxTools
 		INodeTab selectedNodes;
 		VisitSceneNodes([&selectedNodes](INode& node)
 		{
-
-			for (int i = 0; i < node.NumMtls(); ++i)
+			Mtl* mtl = node.GetMtl();
+			if (!mtl) return;
+			std::unordered_set<Mtl*> visited;
+			if (MaterialContainsAlpha(mtl, visited))
 			{
-				bool push = false;
-				Mtl* mtl = node.GetMtl();
-				if (mtl && mtl->ClassID() == W3DMaterialClassDesc::Instance()->ClassID())
-				{
-					W3DMaterial* w3dmtl = static_cast<W3DMaterial*>(mtl);
-					const int numActivePasses = w3dmtl->NumActivePasses();
-					for (int j = 0; j < numActivePasses; ++j)
-					{
-						IParamBlock2* pb = w3dmtl->GetMaterialPass(j).ParamBlock;
-						if (pb && (pb->GetInt(enum_to_value(W3DMaterialParamID::Stage0AlphaBitmap)) || pb->GetInt(enum_to_value(W3DMaterialParamID::Stage1AlphaBitmap))))
-						{
-							push = true;
-							break;
-						}
-					}
-
-					if (push)
-					{
-						selectedNodes.AppendNode(&node, true);
-						break;
-					}
-				}
+				selectedNodes.AppendNode(&node, true);
 			}
 		});
 
+		SetSelectedSceneNodes(selectedNodes);
+	}
+
+	void W3DMiscUtilitiesDlg::SelectByPredicate(const std::function<bool(INode&)>& predicate)
+	{
+		INodeTab selectedNodes;
+		VisitSceneNodes([&selectedNodes, &predicate](INode& node)
+		{
+			if (predicate(node)) selectedNodes.AppendNode(&node, true);
+		});
 		SetSelectedSceneNodes(selectedNodes);
 	}
 
@@ -310,26 +396,61 @@ namespace W3D::MaxTools
 
 	void W3DMiscUtilitiesDlg::RenameBones()
 	{
+		// Loads bonerename.ini next to max2w3d.dle (the file factory's working
+		// dir) and applies "Old=New" pairs from a [BoneRename] section. The
+		// original implementation crashed on a missing/malformed file because
+		// Find_Section returns nullptr if either is missing, and the next line
+		// dereferenced section->EntryList. Now every step is null-checked and
+		// the result is reported.
 		FileClass* file = _TheFileFactory->Get_File("bonerename.ini");
+		if (!file) return;
 
-		if (file)
+		int renamed = 0;
+		bool fileOK = false;
+		// Get_File can return a non-null FileClass that fails to actually open
+		// (no file on disk). Probe by trying to open for reading.
+		if (file->Open(1 /*FILE_READ*/) != 0)
 		{
+			fileOK = true;
 			INIClass ini(*file);
 			INISection* section = ini.Find_Section("BoneRename");
-
-			for (INIEntry* it = section->EntryList.First(); it->Is_Valid(); it = it->Next())
+			if (section)
 			{
-				WideStringClass name = it->Entry;
-				INode* node = GetCOREInterface()->GetINodeByName(name);
-
-				if (node)
+				INIEntry* it = section->EntryList.First();
+				while (it && it->Is_Valid())
 				{
-					WideStringClass newname = it->Value;
-					node->SetName(newname);
+					if (it->Entry && it->Value)
+					{
+						WideStringClass name = it->Entry;
+						INode* node = GetCOREInterface()->GetINodeByName(name);
+						if (node)
+						{
+							WideStringClass newname = it->Value;
+							node->SetName(newname);
+							++renamed;
+						}
+					}
+					it = it->Next();
 				}
 			}
+			file->Close();
+		}
+		_TheFileFactory->Return_File(file);
 
-			_TheFileFactory->Return_File(file);
+		if (!fileOK)
+		{
+			MessageBox(GetCOREInterface()->GetMAXHWnd(),
+				_T("Could not open bonerename.ini next to max2w3d.dle.\n\n")
+				_T("Create a text file named bonerename.ini with a [BoneRename] section ")
+				_T("listing OLD_NAME=NEW_NAME pairs (one per line) and place it alongside the plug-in."),
+				_T("Rename Bones"), MB_OK | MB_ICONINFORMATION);
+		}
+		else
+		{
+			TCHAR msg[128];
+			_sntprintf(msg, 128, _T("Renamed %d bone(s)."), renamed);
+			MessageBox(GetCOREInterface()->GetMAXHWnd(), msg, _T("Rename Bones"),
+				MB_OK | MB_ICONINFORMATION);
 		}
 	}
 

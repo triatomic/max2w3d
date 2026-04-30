@@ -266,6 +266,7 @@
 #define IDC_SCREEN_SPIN                 1149
 #define IDC_SCREEN_LABEL                1150
 #define IDC_MIKKTSPACE                  1151
+#define IDC_SELECT_MAX_BONES            1152
 #define IDC_LOG                         1198
 
 // Next default values for new objects
@@ -274,7 +275,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        170
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1151
+#define _APS_NEXT_CONTROL_VALUE         1153
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
