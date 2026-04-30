@@ -899,6 +899,47 @@ BEGIN
     IDS_RESIZE              "Resize"
 END
 
+STRINGTABLE
+BEGIN
+    IDS_WWSKIN_SKELETON      "Skeleton"
+    IDS_WWSKIN_BONE_INFLUENCE "Bone Influences"
+END
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// WWSkin (Westwood skinning) — modifier panel rollouts
+//
+// Visual style mirrors the existing W3DMaterial dialogs: Max custom controls
+// (CustEdit/SpinnerControl/CustButton) so DPI scaling and Max 2023 dark mode
+// pick up automatically.
+//
+
+IDD_WWSKIN_SKELETON DIALOGEX 0, 0, 175, 170
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_VISIBLE | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    LTEXT           "Bones:",IDC_STATIC,7,4,28,8
+    LISTBOX         IDC_WWSKIN_BONE_LIST,7,15,160,90,LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Add",IDC_WWSKIN_ADD_BONES,"CustButton",WS_TABSTOP,7,108,40,14
+    CONTROL         "Remove",IDC_WWSKIN_REMOVE_BONES,"CustButton",WS_TABSTOP,49,108,40,14
+    CONTROL         "Pick By Name",IDC_WWSKIN_PICK_BY_NAME,"CustButton",WS_TABSTOP,91,108,76,14
+    LTEXT           "Base Pose Frame:",IDC_STATIC,7,130,62,8
+    CONTROL         "",IDC_WWSKIN_BASE_POSE_EDIT,"CustEdit",WS_TABSTOP,72,128,40,12
+    CONTROL         "",IDC_WWSKIN_BASE_POSE_SPIN,"SpinnerControl",WS_TABSTOP | 0x20,113,128,10,12
+    CONTROL         "Classic mode",IDC_WWSKIN_CLASSIC_MODE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,150,90,10
+END
+
+IDD_WWSKIN_BONE_INFLUENCE DIALOGEX 0, 0, 175, 70
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_VISIBLE | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 0, 0, 0x0
+BEGIN
+    GROUPBOX        "Selected Vertices",IDC_STATIC,4,2,167,62
+    CONTROL         "Link",IDC_WWSKIN_LINK,"CustButton",WS_TABSTOP,10,16,76,14
+    CONTROL         "Link By Name",IDC_WWSKIN_LINK_BY_NAME,"CustButton",WS_TABSTOP,90,16,76,14
+    CONTROL         "Auto Link",IDC_WWSKIN_AUTO_LINK,"CustButton",WS_TABSTOP,10,32,76,14
+    CONTROL         "Unlink",IDC_WWSKIN_UNLINK,"CustButton",WS_TABSTOP,90,32,76,14
+END
+
 #endif    // English (United Kingdom) resources
 /////////////////////////////////////////////////////////////////////////////
 

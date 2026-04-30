@@ -2947,3 +2947,326 @@ Value *wwGetFrameRate_cf(Value ** arg_list, int count)
 	}
 	return &undefined;
 }
+
+// ===========================================================================
+// WWSkin scripting helpers — Phase 7 of the WWSkin port. Direct port of EA's
+// SkinCopy.cpp ("SceneSetup" workflow). Names and arg-counts match EA so any
+// existing user MAXScripts that drove the old toolchain keep working.
+//
+// Published functions:
+//   wwFindSkinNode  <tree_root>                          -> WWSkin WSM node | undefined
+//   wwCopySkinInfo  <src> <tgt> <wsm|undefined> <root>   -> WSM node | undefined
+//   wwDuplicateSkinWSM <wsm_node> <tree_root>            -> new WSM node | undefined
+// ===========================================================================
+#include "w3dskin.h"
+#include <modstack.h>
+
+namespace
+{
+	// W3D names are zero-padded, ASCII-uppercase, max 16 chars (W3D_NAME_LEN).
+	// Mirrors EA's Set_W3D_Name() — used to compare bones across hierarchies
+	// regardless of trailing extensions like ".001" or case differences.
+	static void Make_W3D_Name(char* out, const TCHAR* in)
+	{
+		out[0] = '\0';
+		if (!in) return;
+		// TCHAR is wchar_t in this build — narrow it then uppercase.
+		char narrow[256];
+		size_t i = 0;
+		for (; in[i] && i < sizeof(narrow) - 1; ++i)
+		{
+			narrow[i] = (char)in[i];
+		}
+		narrow[i] = '\0';
+		// Truncate at the first '.' (matches Westwood naming convention).
+		for (size_t k = 0; narrow[k]; ++k)
+			if (narrow[k] == '.') { narrow[k] = '\0'; break; }
+		strncpy(out, narrow, W3D_NAME_LEN - 1);
+		out[W3D_NAME_LEN - 1] = '\0';
+		for (size_t k = 0; out[k]; ++k)
+			out[k] = (char)toupper((unsigned char)out[k]);
+	}
+
+	static W3D::MaxTools::SkinWSMObjectClass* get_skin_wsm_obj(INode* wsm_node)
+	{
+		if (!wsm_node) return nullptr;
+		Object* obj = wsm_node->GetObjectRef();
+		// Burrow through any derived-object stack to reach the base.
+		while (obj && obj->SuperClassID() == GEN_DERIVOB_CLASS_ID)
+		{
+			obj = ((IDerivedObject*)obj)->GetObjRef();
+		}
+		if (!obj) return nullptr;
+		if (obj->ClassID() != Class_ID(0x32B37E0C, 0x5A9612E4)) return nullptr;
+		return static_cast<W3D::MaxTools::SkinWSMObjectClass*>(obj);
+	}
+
+	static W3D::MaxTools::SkinModifierClass* find_skin_binding(INode* skinned_obj)
+	{
+		if (!skinned_obj) return nullptr;
+		IDerivedObject* dobj = skinned_obj->GetWSMDerivedObject();
+		if (!dobj) return nullptr;
+		const Class_ID modCID(0x6BAD4898, 0x0D1D6CED);
+		for (int i = 0; i < dobj->NumModifiers(); ++i)
+		{
+			Modifier* mod = dobj->GetModifier(i);
+			if (mod && mod->ClassID() == modCID)
+				return static_cast<W3D::MaxTools::SkinModifierClass*>(mod);
+		}
+		return nullptr;
+	}
+
+	static INode* find_skin_wsm(INode* skinned_obj)
+	{
+		auto* sm = find_skin_binding(skinned_obj);
+		if (!sm) return nullptr;
+		return static_cast<INode*>(sm->GetReference(W3D::MaxTools::SkinModifierClass::NODE_REF));
+	}
+
+	static INode* find_equivalent_node(INode* source, INode* tree, bool name_is_valid = false)
+	{
+		if (!source || !tree) return nullptr;
+		static char src_name[W3D_NAME_LEN];
+		if (!name_is_valid) Make_W3D_Name(src_name, source->GetName());
+
+		char chk_name[W3D_NAME_LEN];
+		Make_W3D_Name(chk_name, tree->GetName());
+		if (strcmp(src_name, chk_name) == 0) return tree;
+
+		for (int i = 0; i < tree->NumberOfChildren(); ++i)
+		{
+			INode* hit = find_equivalent_node(source, tree->GetChildNode(i), true);
+			if (hit) return hit;
+		}
+		return nullptr;
+	}
+
+	static Value* find_skin_node_in_tree(INode* root)
+	{
+		if (!root) return &undefined;
+		if (get_skin_wsm_obj(root))
+		{
+			one_typed_value_local(Value* wsm_node);
+			vl.wsm_node = MAXNode::intern(root);
+			return_value(vl.wsm_node);
+		}
+		for (int i = 0; i < root->NumChildren(); ++i)
+		{
+			Value* r = find_skin_node_in_tree(root->GetChildNode(i));
+			if (r != &undefined) return r;
+		}
+		return &undefined;
+	}
+
+	static INode* duplicate_wsm(INode* wsm_node, INode* tree)
+	{
+		auto* wsm_obj = get_skin_wsm_obj(wsm_node);
+		if (!wsm_node || !wsm_obj) return nullptr;
+
+		auto* new_wsm_obj = static_cast<W3D::MaxTools::SkinWSMObjectClass*>(
+			CreateInstance(WSM_OBJECT_CLASS_ID, Class_ID(0x32B37E0C, 0x5A9612E4)));
+		if (!new_wsm_obj) return nullptr;
+
+		INode* new_wsm_node = GetCOREInterface()->CreateObjectNode(new_wsm_obj);
+		if (!new_wsm_node) return nullptr;
+
+		// Re-bind every bone slot to the equivalently-named node in the target tree.
+		for (int i = 0; i < wsm_obj->Num_Bones(); ++i)
+		{
+			INode* src_bone = wsm_obj->Get_Bone(i);
+			INode* dst_bone = find_equivalent_node(src_bone, tree);
+			if (!src_bone || !dst_bone) return nullptr;
+			new_wsm_obj->Add_Bone(dst_bone);
+		}
+		return new_wsm_node;
+	}
+
+	static IDerivedObject* setup_wsm_derived_obj(INode* node)
+	{
+		IDerivedObject* dobj = node->GetWSMDerivedObject();
+		const Class_ID modCID(0x6BAD4898, 0x0D1D6CED);
+		if (dobj)
+		{
+			// Strip any pre-existing WWSkin Binding so we don't end up doubly-bound.
+			for (int i = 0; i < dobj->NumModifiers(); ++i)
+			{
+				Modifier* mod = dobj->GetModifier(i);
+				if (mod && mod->ClassID() == modCID) { dobj->DeleteModifier(i); break; }
+			}
+		}
+		else
+		{
+			dobj = CreateWSDerivedObject(node->GetObjectRef());
+			if (!dobj) throw RuntimeError(_M("Error setting up the WSMDerivedObject"));
+			node->SetObjectRef(dobj);
+		}
+		return dobj;
+	}
+
+	static ModContext* find_skin_mod_context(INode* node)
+	{
+		if (!node) return nullptr;
+		IDerivedObject* dobj = node->GetWSMDerivedObject();
+		if (!dobj) return nullptr;
+		const Class_ID modCID(0x6BAD4898, 0x0D1D6CED);
+		for (int i = 0; i < dobj->NumModifiers(); ++i)
+		{
+			Modifier* mod = dobj->GetModifier(i);
+			if (mod && mod->ClassID() == modCID) return dobj->GetModContext(i);
+		}
+		return nullptr;
+	}
+
+	static Value* copy_skin_info(INode* source, INode* target, INode* wsm)
+	{
+		auto* source_modifier = find_skin_binding(source);
+		if (!source_modifier) return &undefined;
+
+		IDerivedObject* dobj = setup_wsm_derived_obj(target);
+
+		auto* wsm_obj = get_skin_wsm_obj(wsm);
+		auto* new_modifier = new W3D::MaxTools::SkinModifierClass(wsm, wsm_obj);
+		new_modifier->SubObjSelLevel = source_modifier->SubObjSelLevel;
+
+		// Carry the source's local mod data (vertex-influence table) over so the
+		// target inherits the same per-vertex bone assignments and weights.
+		ModContext* source_context = find_skin_mod_context(source);
+		ModContext* new_context = source_context
+			? new ModContext(source_context->tm, source_context->box, source_context->localData)
+			: new ModContext();
+
+		dobj->AddModifier(new_modifier, new_context);
+
+		one_typed_value_local(Value* wsm_node);
+		vl.wsm_node = MAXNode::intern(wsm);
+		return_value(vl.wsm_node);
+	}
+}
+
+def_visible_primitive(wwFindSkinNode,    "wwFindSkinNode");
+def_visible_primitive(wwCopySkinInfo,    "wwCopySkinInfo");
+def_visible_primitive(wwDuplicateSkinWSM,"wwDuplicateSkinWSM");
+def_visible_primitive(wwAddBone,         "wwAddBone");
+def_visible_primitive(wwSetBoneWeight,   "wwSetBoneWeight");
+
+Value* wwFindSkinNode_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwFindSkinNode, 1, count);
+	if (!is_node(arg_list[0])) throw TypeError(L"Tree Root INode", arg_list[0], class_tag(MAXNode));
+	return find_skin_node_in_tree(arg_list[0]->to_node());
+}
+
+Value* wwCopySkinInfo_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwCopySkinInfo, 4, count);
+	if (!is_node(arg_list[0])) throw TypeError(L"Source INode",      arg_list[0], class_tag(MAXNode));
+	if (!is_node(arg_list[1])) throw TypeError(L"Target INode",      arg_list[1], class_tag(MAXNode));
+	if (!is_node(arg_list[3])) throw TypeError(L"Tree Root INode",   arg_list[3], class_tag(MAXNode));
+
+	INode* src       = arg_list[0]->to_node();
+	INode* dst       = arg_list[1]->to_node();
+	INode* tree_root = arg_list[3]->to_node();
+	INode* wsm_node  = nullptr;
+
+	if (arg_list[2] == &undefined)
+	{
+		wsm_node = duplicate_wsm(find_skin_wsm(src), tree_root);
+		if (!wsm_node) return &undefined;
+	}
+	else
+	{
+		if (!is_node(arg_list[2])) throw TypeError(L"WSM INode or undefined", arg_list[2], class_tag(MAXNode));
+		wsm_node = arg_list[2]->to_node();
+	}
+	return copy_skin_info(src, dst, wsm_node);
+}
+
+Value* wwDuplicateSkinWSM_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwDuplicateSkinWSM, 2, count);
+	if (!is_node(arg_list[0])) throw TypeError(L"WWSkin Object INode", arg_list[0], class_tag(MAXNode));
+	if (!is_node(arg_list[1])) throw TypeError(L"Target Tree Root INode", arg_list[1], class_tag(MAXNode));
+
+	INode* dupe = duplicate_wsm(arg_list[0]->to_node(), arg_list[1]->to_node());
+	if (!dupe) return &undefined;
+	one_typed_value_local(Value* wsm_node);
+	vl.wsm_node = MAXNode::intern(dupe);
+	return_value(vl.wsm_node);
+}
+
+// wwAddBone <bone_node> <wsm_or_skinned_mesh_node>
+//   - If the second arg is a WWSkin WSM node, adds the bone directly.
+//   - If it's a skinned mesh (has a WWSkin Binding), adds the bone to the WSM
+//     that the binding references. Convenience for the importer's "for each
+//     pivot, add as bone" loop.
+// Returns: ok | undefined
+Value* wwAddBone_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwAddBone, 2, count);
+	if (!is_node(arg_list[0])) throw TypeError(L"Bone INode",   arg_list[0], class_tag(MAXNode));
+	if (!is_node(arg_list[1])) throw TypeError(L"Target INode", arg_list[1], class_tag(MAXNode));
+
+	INode* bone   = arg_list[0]->to_node();
+	INode* target = arg_list[1]->to_node();
+
+	W3D::MaxTools::SkinWSMObjectClass* wsm = get_skin_wsm_obj(target);
+	if (!wsm)
+	{
+		// target may be a skinned mesh — go via its binding to the WSM node.
+		INode* wsm_node = find_skin_wsm(target);
+		wsm = get_skin_wsm_obj(wsm_node);
+	}
+	if (!wsm) return &undefined;
+
+	wsm->Add_Bone(bone);
+	return &ok;
+}
+
+// wwSetBoneWeight <skinned_mesh> <vert_idx_0based> <slot 1|2> <bone_node> <weight_0_to_100>
+//   Sets one of the two influence slots on a single vertex. Slot 1 = primary,
+//   slot 2 = secondary (matches EA's convention used by older importer scripts).
+//   Weight is 0..100 (scaled to 0..1 internally to match the on-disk format).
+//   The implementation walks the mesh's WWSkin Binding modifier, locates its
+//   ModContext-attached SkinDataClass, resolves the bone's index in the WSM's
+//   bone tab, and writes BoneIdx/BoneWeight directly.
+// Returns: ok | undefined
+Value* wwSetBoneWeight_cf(Value** arg_list, int count)
+{
+	check_arg_count(wwSetBoneWeight, 5, count);
+	if (!is_node  (arg_list[0])) throw TypeError(L"Skinned Mesh INode", arg_list[0], class_tag(MAXNode));
+	if (!is_number(arg_list[1])) throw TypeError(L"Vertex index",       arg_list[1], class_tag(Integer));
+	if (!is_number(arg_list[2])) throw TypeError(L"Slot (1 or 2)",      arg_list[2], class_tag(Integer));
+	if (!is_node  (arg_list[3])) throw TypeError(L"Bone INode",         arg_list[3], class_tag(MAXNode));
+	if (!is_number(arg_list[4])) throw TypeError(L"Weight 0..100",      arg_list[4], class_tag(Float));
+
+	INode*       mesh   = arg_list[0]->to_node();
+	const int    vid    = arg_list[1]->to_int();
+	const int    slot   = arg_list[2]->to_int();
+	INode*       bone   = arg_list[3]->to_node();
+	const float  weight = arg_list[4]->to_float() / 100.0f;
+
+	if (slot != 1 && slot != 2) return &undefined;
+
+	auto* skinMod = find_skin_binding(mesh);
+	if (!skinMod || !skinMod->WSMObjectRef) return &undefined;
+
+	auto* skinData = static_cast<W3D::MaxTools::SkinDataClass*>(find_skin_mod_context(mesh)
+		? find_skin_mod_context(mesh)->localData : nullptr);
+	if (!skinData) return &undefined;
+
+	if (vid < 0 || vid >= skinData->VertData.Count()) return &undefined;
+
+	int boneIdx = skinMod->WSMObjectRef->Find_Bone(bone);
+	if (boneIdx < 0)
+	{
+		// Bone isn't on the WSM yet — add it on demand so the importer doesn't
+		// have to pre-walk the pivot list.
+		boneIdx = skinMod->WSMObjectRef->Add_Bone(bone);
+		if (boneIdx < 0) return &undefined;
+	}
+
+	auto& inf = skinData->VertData[vid];
+	inf.BoneIdx   [slot - 1] = boneIdx;
+	inf.BoneWeight[slot - 1] = weight;
+	return &ok;
+}

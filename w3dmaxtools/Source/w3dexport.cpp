@@ -4,6 +4,7 @@
 #include <meshnormalspec.h>
 #include <maxheapdirect.h>
 #include "w3dexport.h"
+#include "w3dskin.h"   // Phase 8: detect WWSkin Binding alongside native Skin
 #include "EulerAngles.h"
 #include "Dialog/w3dexportdlg.h"
 #include "BufferedFileClass.h"
@@ -1218,6 +1219,96 @@ namespace W3D::MaxTools
 		return nullptr;
 	}
 
+	// Phase 8 (WWSkin): the WWSkin Binding modifier lives on the WSM-derived
+	// stack (it's a Space Warp modifier), NOT the OSM stack that FindSkinModifier
+	// walks. So we look there separately. Returns the binding if present.
+	W3D::MaxTools::SkinModifierClass* FindWWSkinModifier(INode* nodePtr)
+	{
+		if (!nodePtr) return nullptr;
+		IDerivedObject* dobj = nodePtr->GetWSMDerivedObject();
+		if (!dobj) return nullptr;
+		const Class_ID wwskinModCID(0x6BAD4898, 0x0D1D6CED);
+		for (int i = 0; i < dobj->NumModifiers(); ++i)
+		{
+			Modifier* mod = dobj->GetModifier(i);
+			if (mod && mod->ClassID() == wwskinModCID)
+				return static_cast<W3D::MaxTools::SkinModifierClass*>(mod);
+		}
+		return nullptr;
+	}
+
+	// Per-vertex skin sampler — abstracts the (bones, weights) query so the
+	// existing export pipeline can read from EITHER Max's native Skin (ISkin)
+	// OR a WWSkin Binding modifier without branching at every callsite.
+	struct SkinSampler
+	{
+		// Native Skin path
+		ISkin*             native       = nullptr;
+		ISkinContextData*  nativeCtx    = nullptr;
+		// WWSkin path
+		W3D::MaxTools::SkinModifierClass* wwskin = nullptr;
+		W3D::MaxTools::SkinDataClass*     wwdata = nullptr;
+
+		bool IsValid() const
+		{
+			return (native && nativeCtx) || (wwskin && wwdata && wwskin->WSMObjectRef);
+		}
+
+		int GetNumAssignedBones(int vid) const
+		{
+			if (native && nativeCtx) return nativeCtx->GetNumAssignedBones(vid);
+			if (wwskin && wwdata && vid < wwdata->VertData.Count())
+			{
+				const auto& inf = wwdata->VertData[vid];
+				int n = 0;
+				if (inf.BoneIdx[0] >= 0) ++n;
+				if (inf.BoneIdx[1] >= 0) ++n;
+				return n;
+			}
+			return 0;
+		}
+
+		float GetBoneWeight(int vid, int k) const
+		{
+			if (native && nativeCtx) return nativeCtx->GetBoneWeight(vid, k);
+			if (wwskin && wwdata && vid < wwdata->VertData.Count())
+			{
+				return wwdata->VertData[vid].BoneWeight[k];
+			}
+			return 0.0f;
+		}
+
+		INode* GetAssignedBone(int vid, int k) const
+		{
+			if (native && nativeCtx)
+				return native->GetBone(nativeCtx->GetAssignedBone(vid, k));
+			if (wwskin && wwdata && vid < wwdata->VertData.Count())
+			{
+				const int boneIdx = wwdata->VertData[vid].BoneIdx[k];
+				if (boneIdx < 0 || boneIdx >= wwskin->WSMObjectRef->Num_Bones()) return nullptr;
+				return wwskin->WSMObjectRef->Get_Bone(boneIdx);
+			}
+			return nullptr;
+		}
+	};
+
+	// Find the SkinDataClass for a node by walking its WSM-derived ModContexts.
+	W3D::MaxTools::SkinDataClass* FindWWSkinData(INode* node, W3D::MaxTools::SkinModifierClass* mod)
+	{
+		if (!node || !mod) return nullptr;
+		IDerivedObject* dobj = node->GetWSMDerivedObject();
+		if (!dobj) return nullptr;
+		for (int i = 0; i < dobj->NumModifiers(); ++i)
+		{
+			if (dobj->GetModifier(i) == mod)
+			{
+				ModContext* mc = dobj->GetModContext(i);
+				return mc ? static_cast<W3D::MaxTools::SkinDataClass*>(mc->localData) : nullptr;
+			}
+		}
+		return nullptr;
+	}
+
 	bool HasSkin(INode* node)
 	{
 		if (node->IsGroupHead())
@@ -1235,7 +1326,9 @@ namespace W3D::MaxTools
 			return false;
 		}
 
-		return FindSkinModifier(node) != nullptr;
+		// Either Max's native Skin OR our WWSkin Binding qualifies the mesh as
+		// skinned for export purposes.
+		return FindSkinModifier(node) != nullptr || FindWWSkinModifier(node) != nullptr;
 	}
 
 	bool IsNormalGeometry(INode* node)
@@ -7509,17 +7602,26 @@ namespace W3D::MaxTools
 			}
 #endif
 
+			// Phase 8: detect either native Skin OR WWSkin Binding. Native Skin
+			// takes precedence if both are present (matches expectations of pre-
+			// WWSkin scenes). The SkinSampler abstracts the per-vertex query.
 			Modifier* skinMod = FindSkinModifier(Node);
-			ISkin* skin = nullptr;
-			ISkinContextData* context = nullptr;
+			SkinSampler sampler;
 
 			if (skinMod)
 			{
-				skin = (ISkin*)skinMod->GetInterface(I_SKIN);
-
-				if (skin)
+				sampler.native = (ISkin*)skinMod->GetInterface(I_SKIN);
+				if (sampler.native)
 				{
-					context = skin->GetContextInterface(Node);
+					sampler.nativeCtx = sampler.native->GetContextInterface(Node);
+				}
+			}
+			else
+			{
+				sampler.wwskin = FindWWSkinModifier(Node);
+				if (sampler.wwskin)
+				{
+					sampler.wwdata = FindWWSkinData(Node, sampler.wwskin);
 				}
 			}
 
@@ -7527,12 +7629,9 @@ namespace W3D::MaxTools
 
 			if ((Header.Attributes & W3D_MESH_FLAG_GEOMETRY_TYPE_MASK) == W3D_MESH_FLAG_GEOMETRY_TYPE_SKIN)
 			{
-				if (Hierarchy)
+				if (Hierarchy && sampler.IsValid())
 				{
-					if (skin && context)
-					{
-						hasskin = true;
-					}
+					hasskin = true;
 				}
 			}
 
@@ -7745,16 +7844,16 @@ namespace W3D::MaxTools
 						float influenceWeights[8];
 						int influenceBones[8];
 						int influenceCount = 0;
-						const int assignedBones = context->GetNumAssignedBones(id);
+						const int assignedBones = sampler.GetNumAssignedBones(id);
 						for (int k = 0; k < assignedBones && influenceCount < 8; ++k)
 						{
-							const float weight = context->GetBoneWeight(id, k);
+							const float weight = sampler.GetBoneWeight(id, k);
 							if (weight <= 0.0f)
 							{
 								continue;
 							}
 
-							INode* bone = skin->GetBone(context->GetAssignedBone(id, k));
+							INode* bone = sampler.GetAssignedBone(id, k);
 							if (!bone)
 							{
 								continue;
