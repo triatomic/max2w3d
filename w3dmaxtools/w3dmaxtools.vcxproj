@@ -492,6 +492,9 @@
     <ClInclude Include="..\w3dmaxtools\Redist\w3dmaterial.h" />
     <ClInclude Include="..\w3dmaxtools\Redist\w3dmaxcommonhelpers.h" />
     <ClInclude Include="..\w3dmaxtools\Redist\w3dmaxcommonhelpers.inl" />
+    <ClInclude Include="..\w3dmaxtools\Redist\boneicon.h" />
+    <ClInclude Include="..\w3dmaxtools\Redist\bpick.h" />
+    <ClInclude Include="..\w3dmaxtools\Redist\namedsel.h" />
     <ClInclude Include="..\w3dmaxtools\Redist\w3dskin.h" />
     <ClInclude Include="..\w3dmaxtools\Redist\w3dutilities.h" />
     <ClInclude Include="..\w3dmaxtools\resource.h" />
@@ -545,6 +548,9 @@
     <ClCompile Include="..\w3dmaxtools\Source\w3dexport.cpp" />
     <ClCompile Include="..\w3dmaxtools\Source\w3dmaterial.cpp" />
     <ClCompile Include="..\w3dmaxtools\Source\w3dmaxcommonhelpers.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\boneicon.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\bpick.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\namedsel.cpp" />
     <ClCompile Include="..\w3dmaxtools\Source\w3dskin.cpp" />
     <ClCompile Include="..\w3dmaxtools\Source\w3dutilities.cpp" />
     <ResourceCompile Include="..\w3dmaxtools\w3dmaxtools.rc" />
