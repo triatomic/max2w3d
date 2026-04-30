@@ -681,6 +681,13 @@ namespace W3D::MaxTools
 		}
 
 		NotifyDependents(FOREVER, PART_ALL, REFMSG_SUBANIM_STRUCTURE_CHANGED);
+
+		// REFMSG_SUBANIM_STRUCTURE_CHANGED makes Max re-evaluate which sub-texmap is the
+		// "active" one for viewport / preview rendering. If we don't re-call SetActiveTexmap,
+		// the previously active texmap pointer (Pass 1's bitmap) can be displaced by Max's
+		// re-walk of the now-larger sub-texmap list, leaving the preview/viewport rendering
+		// whichever texmap (often the highest-indexed empty pass) Max picks by default.
+		InvalidateDisplayTexture();
 	}
 
 	void W3DMaterial::ClearDisplayFlags()
@@ -954,18 +961,42 @@ namespace W3D::MaxTools
 						const ParamID stage1Tex = enum_to_value(W3DMaterialParamID::Stage1TextureMap);
 						const ParamID stage0En = enum_to_value(W3DMaterialParamID::Stage0TextureEnabled);
 						const ParamID stage1En = enum_to_value(W3DMaterialParamID::Stage1TextureEnabled);
+						// IsWindow guard: when the Material Editor closes the slot, Max
+						// destroys the master ParamDlg (and our sub-pass dialogs) but
+						// doesn't call back into the Mtl, leaving m_Passes[i].Dialog
+						// dangling. A stale REFMSG_CHANGE forwarded from a still-open
+						// bitmap editor (e.g. user changes mono channel output on a
+						// previously-assigned bitmap) would otherwise dereference that
+						// freed pointer and crash. Verify the editor HWND first.
+						//
+						// The try/catch handles the second crash mode: with the editor
+						// still OPEN, a bitmap mid-channel-flip can have GetMapName()
+						// pointing at memory Max is rebuilding. Downstream calls (e.g.
+						// SplitPathFile / button->SetText paint cycles) sporadically
+						// throw a C++ exception in that window. The refresh is purely
+						// cosmetic (updates the stage button caption) — the exception
+						// gets swallowed and the caption updates on the next valid
+						// REFMSG_CHANGE, instead of taking Max down.
 						if (m_Passes[i].Dialog &&
+							m_MtlDlgHandle && IsWindow(m_MtlDlgHandle) &&
 							(changing_param == stage0Tex || changing_param == stage1Tex ||
 							 changing_param == stage0En || changing_param == stage1En))
 						{
-							IParamMap2* map = m_Passes[i].Dialog->GetMap();
-							if (map)
+							try
 							{
-								if (auto* userDlg = static_cast<W3DMaterialPassDlgProc*>(map->GetUserDlgProc()))
+								IParamMap2* map = m_Passes[i].Dialog->GetMap();
+								if (map)
 								{
-									const int stageIdx = (changing_param == stage1Tex || changing_param == stage1En) ? 1 : 0;
-									userDlg->RefreshStageUI(stageIdx);
+									if (auto* userDlg = static_cast<W3DMaterialPassDlgProc*>(map->GetUserDlgProc()))
+									{
+										const int stageIdx = (changing_param == stage1Tex || changing_param == stage1En) ? 1 : 0;
+										userDlg->RefreshStageUI(stageIdx);
+									}
 								}
+							}
+							catch (...)
+							{
+								// Swallow — the next REFMSG_CHANGE will pick up the correct state.
 							}
 						}
 					}
@@ -1391,6 +1422,23 @@ namespace W3D::MaxTools
 			for (int i = 0; i < NumActivePasses(); i++)
 			{
 				W3DMaterialPass &pass = GetMaterialPass(i);
+
+				// Skip passes with no live texture stage. Same reason as in the exporter:
+				// PassTwo's defaults (Stage*Enabled=false, srcBlend=One, destBlend=Zero,
+				// PriGradient=Modulate) would otherwise produce opaque white that overdraws
+				// the textured Pass 0, leaving the rendered preview / Max renderer output
+				// blank for any artist who bumps PassCount without authoring stage 1.
+				const bool stage0Live =
+					pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage0TextureEnabled)) &&
+					GetSubTexmap(i * 2) != nullptr;
+				const bool stage1Live =
+					pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage1TextureEnabled)) &&
+					GetSubTexmap(i * 2 + 1) != nullptr;
+				if (!stage0Live && !stage1Live)
+				{
+					continue;
+				}
+
 				Color ambient = sc.ambientLight;
 				Color diffuse(0, 0, 0);
 				Color specular(0, 0, 0);

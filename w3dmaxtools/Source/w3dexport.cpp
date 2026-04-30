@@ -3237,13 +3237,29 @@ namespace W3D::MaxTools
 			void InitFromW3DMaterial(W3DMaterial* mtl)
 			{
 				Reset();
-				PassCount = mtl->NumActivePasses();
 				SurfaceType = mtl->GetSurfaceType();
 				SortLevel = mtl->GetSortLevel();
 
+				// Skip passes that have no enabled texture stage with a valid texmap.
+				// Otherwise an artist who bumps PassCount without authoring stage 1 would emit
+				// an opaque "Texturing Disable, blend One/Zero" pass that overdraws pass 0
+				// and hides the textured (e.g. AlphaTest) result in-engine.
+				int outPass = 0;
 				for (int i = 0; i < mtl->NumActivePasses(); i++)
 				{
 					W3DMaterialPass& pass = mtl->GetMaterialPass(i);
+
+					const bool stage0Live =
+						pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage0TextureEnabled)) &&
+						mtl->GetSubTexmap(2 * i + 0) != nullptr;
+					const bool stage1Live =
+						pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage1TextureEnabled)) &&
+						mtl->GetSubTexmap(2 * i + 1) != nullptr;
+					if (!stage0Live && !stage1Live)
+					{
+						continue;
+					}
+
 					W3dShaderStruct shader;
 					shader.DepthCompare = pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::DepthCmp));
 					shader.DepthMask = pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::BlendWriteZBuffer));
@@ -3484,20 +3500,23 @@ namespace W3D::MaxTools
 							tex.SetTextureInfo(&texinfo);
 						}
 
-						SetTexture(&tex, i, j);
+						SetTexture(&tex, outPass, j);
 						shader.Texturing = W3DSHADER_TEXTURING_ENABLE;
-						UVSources[i][j] = pass.ParamBlock->GetInt(enum_to_value(j ? W3DMaterialParamID::Stage1MappingUVChannel : W3DMaterialParamID::Stage0MappingUVChannel));
+						UVSources[outPass][j] = pass.ParamBlock->GetInt(enum_to_value(j ? W3DMaterialParamID::Stage1MappingUVChannel : W3DMaterialParamID::Stage0MappingUVChannel));
 						StringClass str2 = pass.ParamBlock->GetStr(enum_to_value(j ? W3DMaterialParamID::Stage1MappingArgs : W3DMaterialParamID::Stage0MappingArgs));
 
 						if (str2.Get_Length())
 						{
-							SetMapperArgs(str2, i, j);
+							SetMapperArgs(str2, outPass, j);
 						}
 					}
 
-					SetShader(&shader, i);
-					SetVertexMaterial(&mat, i);
+					SetShader(&shader, outPass);
+					SetVertexMaterial(&mat, outPass);
+					++outPass;
 				}
+
+				PassCount = outPass;
 			}
 
 //#ifdef W3X
