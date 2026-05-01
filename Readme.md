@@ -132,7 +132,7 @@ is released in accordance with **GNU GPL v3.0**.
 Clone the repository:
 
 ```bash
-git clone -b wwskin-bundle https://github.com/triatomic/max2w3d
+git clone -b wwskin-bundle-WWSkinExporterFix https://github.com/triatomic/max2w3d
 ```
 
 Then compile using **Visual Studio 2022** and follow the setup steps above.
