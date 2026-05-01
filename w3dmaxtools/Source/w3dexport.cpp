@@ -1480,9 +1480,15 @@ namespace W3D::MaxTools
 	}
 #endif
 
+	bool IsWWSkinObject(INode* node)
+	{
+		Object* obj = node->GetObjectRef();
+		return obj && obj->ClassID() == Class_ID(0x32B37E0C, 0x5A9612E4);
+	}
+
 	bool IsExportBone(INode* node)
 	{
-		if (node->IsGroupHead())
+		if (node->IsGroupHead() || IsWWSkinObject(node))
 		{
 			return false;
 		}
@@ -2269,7 +2275,7 @@ namespace W3D::MaxTools
 
 	bool GetExportGeometry(INode* node)
 	{
-		if (node->IsGroupHead())
+		if (node->IsGroupHead() || IsWWSkinObject(node))
 		{
 			return false;
 		}
