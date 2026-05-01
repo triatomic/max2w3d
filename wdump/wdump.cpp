@@ -1,6 +1,17 @@
 #include <commdlg.h>
+#include <windowsx.h>
 #include <unordered_map>
+#include <vector>
+#include <string>
 #include <commctrl.h>
+#include <uxtheme.h>
+#include <vsstyle.h>
+#include <shobjidl.h>
+#include <objbase.h>
+#include <shellapi.h>
+#pragma comment(lib, "uxtheme.lib")
+#pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "shell32.lib")
 #include "BufferedFileClass.h"
 #include "chunkclass.h"
 #include "w3d.h"
@@ -18,6 +29,9 @@ HMENU menu;
 HACCEL accel;
 int mainwidth;
 int mainheight;
+int splitterX = 300;
+bool splitterDragging = false;
+static const int SPLITTER_WIDTH = 5;
 #define CLASS_NAME L"WDUMP"
 #define WND_TITLE L"wdump"
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' " "version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
@@ -3640,18 +3654,116 @@ void initmap()
 	CHUNK(W3D_CHUNK_COMPRESSED_ANIMATION_MOTION_CHANNEL)
 }
 
-void DumpData(FILE *out, FILE *unknown, ChunkData *data, StringClass tabs)
+// Beautify helper: reserved fields whose all-zero state is noise we suppress.
+static bool IsReservedFieldName(const char *name)
+{
+	return strcmp(name, "pad") == 0
+		|| strcmp(name, "FutureCounts") == 0
+		|| strcmp(name, "FutureUse") == 0;
+}
+
+// Beautify helper: returns true when value contains only zero digits, spaces,
+// and commas - i.e. something like "0", "0 0 0 0 0", or "0, 0, 0".
+static bool IsAllZeroValue(const char *value)
+{
+	if (!value || !*value) return false;
+	for (const char *p = value; *p; ++p)
+	{
+		if (*p != '0' && *p != ' ' && *p != ',' && *p != '\t') return false;
+	}
+	return true;
+}
+
+static void HtmlEscape(FILE *out, const char *s)
+{
+	for (; *s; ++s)
+	{
+		switch (*s)
+		{
+		case '&':  fputs("&amp;",  out); break;
+		case '<':  fputs("&lt;",   out); break;
+		case '>':  fputs("&gt;",   out); break;
+		case '"':  fputs("&quot;", out); break;
+		default:   fputc(*s, out);       break;
+		}
+	}
+}
+
+static void DumpDataHtml(FILE *out, FILE *unknown, const ChunkData *data, int depth)
+{
+	// Field table for this chunk (only when there are fields).
+	if (data->data.Count() > 0)
+	{
+		fputs("<table><thead><tr><th>Name</th><th>Type</th><th>Value</th></tr></thead><tbody>\n", out);
+		for (int i = 0; i < data->data.Count(); i++)
+		{
+			const ChunkInfo *e = data->data[i];
+			fputs("<tr><td>", out); HtmlEscape(out, e->name.Peek_Buffer());
+			fputs("</td><td>", out); HtmlEscape(out, e->type.Peek_Buffer());
+			fputs("</td><td>", out); HtmlEscape(out, e->value.Peek_Buffer());
+			fputs("</td></tr>\n", out);
+		}
+		fputs("</tbody></table>\n", out);
+	}
+
+	// Subchunks as nested <details>.
+	for (int i = 0; i < data->subchunks.Count(); i++)
+	{
+		const ChunkData *sub = data->subchunks[i];
+		fputs("<details><summary>", out);
+		HtmlEscape(out, sub->name.Peek_Buffer());
+		fputs("</summary>\n", out);
+		DumpDataHtml(out, unknown, sub, depth + 1);
+		fputs("</details>\n", out);
+	}
+
+	for (int i = 0; i < data->unknowndata.Count(); i++)
+		fprintf(unknown, "%s\n", data->unknowndata[i].Peek_Buffer());
+}
+
+void DumpData(FILE *out, FILE *unknown, ChunkData *data, StringClass tabs, bool beautify)
 {
 	StringClass str = tabs;
 	str += '\t';
-	for (int i = 0; i < data->data.Count(); i++)
+
+	if (beautify && data->data.Count() > 0)
 	{
-		fprintf(out, "%s%s %s\n", tabs.Peek_Buffer(), data->data[i]->name.Peek_Buffer(), data->data[i]->value.Peek_Buffer());
+		// Compute column widths for this chunk's fields.
+		int nameW = 0, typeW = 0;
+		for (int i = 0; i < data->data.Count(); i++)
+		{
+			int n = (int)strlen(data->data[i]->name.Peek_Buffer());
+			int t = (int)strlen(data->data[i]->type.Peek_Buffer());
+			if (n > nameW) nameW = n;
+			if (t > typeW) typeW = t;
+		}
+		for (int i = 0; i < data->data.Count(); i++)
+		{
+			const ChunkInfo *entry = data->data[i];
+			fprintf(out, "%s  %-*s  =  %-*s  %s\n",
+				tabs.Peek_Buffer(),
+				nameW, entry->name.Peek_Buffer(),
+				typeW, entry->type.Peek_Buffer(),
+				entry->value.Peek_Buffer());
+		}
 	}
+	else if (!beautify)
+	{
+		for (int i = 0; i < data->data.Count(); i++)
+		{
+			fprintf(out, "%s%s %s\n", tabs.Peek_Buffer(),
+				data->data[i]->name.Peek_Buffer(),
+				data->data[i]->value.Peek_Buffer());
+		}
+	}
+
 	for (int i = 0; i < data->subchunks.Count(); i++)
 	{
-		fprintf(out, "%s%s\n", tabs.Peek_Buffer(), data->subchunks[i]->name.Peek_Buffer());
-		DumpData(out, unknown, data->subchunks[i], str);
+		if (beautify)
+			fprintf(out, "%s  [%s]\n", tabs.Peek_Buffer(), data->subchunks[i]->name.Peek_Buffer());
+		else
+			fprintf(out, "%s%s\n", tabs.Peek_Buffer(), data->subchunks[i]->name.Peek_Buffer());
+		DumpData(out, unknown, data->subchunks[i], str, beautify);
 	}
 	for (int i = 0; i < data->unknowndata.Count(); i++)
 	{
@@ -3687,6 +3799,120 @@ LPARAM TreeViewGetItem(HWND tree, HTREEITEM item)
 	return tv.lParam;
 }
 
+// -1 = no sort (original insertion order); 0–2 = column index.
+static int  g_sortCol = -1;
+static int  g_sortDir = 0;   // +1 ascending, -1 descending, 0 = original order
+
+// Active cell tracked by NM_CLICK; -1 = none. Used for cell-level copy and
+// the focus-rect drawn by NM_CUSTOMDRAW.
+static int  g_cellRow = -1;
+static int  g_cellCol = -1;
+
+// Cached Explorer ListView theme used to paint the active cell highlight.
+// Opened lazily; re-opened on WM_THEMECHANGED.
+static HTHEME g_listTheme = nullptr;
+
+static int CALLBACK ListViewSortProc(LPARAM idx1, LPARAM idx2, LPARAM lp)
+{
+	const int dir = (int)lp;
+	if (dir == 0)
+	{
+		LVITEM li1 = {}, li2 = {};
+		li1.mask = li2.mask = LVIF_PARAM;
+		li1.iItem = (int)idx1; li2.iItem = (int)idx2;
+		ListView_GetItem(listwnd, &li1);
+		ListView_GetItem(listwnd, &li2);
+		return (int)(li1.lParam - li2.lParam);
+	}
+	wchar_t t1[1024], t2[1024];
+	ListView_GetItemText(listwnd, (int)idx1, g_sortCol, t1, 1024);
+	ListView_GetItemText(listwnd, (int)idx2, g_sortCol, t2, 1024);
+	return dir * _wcsicmp(t1, t2);
+}
+
+static void ListViewSetSortArrow(int col, int dir)
+{
+	HWND hdr = ListView_GetHeader(listwnd);
+	if (!hdr) return;
+	int n = Header_GetItemCount(hdr);
+	for (int i = 0; i < n; i++)
+	{
+		HDITEM hi = {};
+		hi.mask = HDI_FORMAT;
+		Header_GetItem(hdr, i, &hi);
+		hi.fmt &= ~(HDF_SORTUP | HDF_SORTDOWN);
+		if (i == col && dir != 0)
+			hi.fmt |= (dir > 0) ? HDF_SORTUP : HDF_SORTDOWN;
+		Header_SetItem(hdr, i, &hi);
+	}
+}
+
+static void ListViewApplySort()
+{
+	ListView_SortItemsEx(listwnd, ListViewSortProc, (LPARAM)g_sortDir);
+	ListViewSetSortArrow(g_sortCol, g_sortDir);
+}
+
+static void CopyListViewToClipboard()
+{
+	int total = ListView_GetItemCount(listwnd);
+	if (!total) return;
+
+	// Single active cell → copy just that cell's text.
+	if (g_cellRow >= 0 && g_cellCol >= 0 &&
+		ListView_GetSelectedCount(listwnd) <= 1)
+	{
+		wchar_t buf[1024];
+		ListView_GetItemText(listwnd, g_cellRow, g_cellCol, buf, 1024);
+		size_t bytes = (wcslen(buf) + 1) * sizeof(wchar_t);
+		HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+		if (!hMem) return;
+		wchar_t *p = (wchar_t *)GlobalLock(hMem);
+		if (!p) { GlobalFree(hMem); return; }
+		memcpy(p, buf, bytes);
+		GlobalUnlock(hMem);
+		if (OpenClipboard(mainwnd))
+		{
+			EmptyClipboard();
+			SetClipboardData(CF_UNICODETEXT, hMem);
+			CloseClipboard();
+		}
+		else GlobalFree(hMem);
+		return;
+	}
+
+	bool hasSelection = ListView_GetNextItem(listwnd, -1, LVNI_SELECTED) >= 0;
+	int  flags        = hasSelection ? LVNI_SELECTED : 0;
+
+	std::wstring out;
+	out.reserve(total * 96);
+	wchar_t buf[1024];
+	int idx = -1;
+	while ((idx = ListView_GetNextItem(listwnd, idx, flags)) >= 0)
+	{
+		ListView_GetItemText(listwnd, idx, 0, buf, 1024); out += buf; out += L'\t';
+		ListView_GetItemText(listwnd, idx, 1, buf, 1024); out += buf; out += L'\t';
+		ListView_GetItemText(listwnd, idx, 2, buf, 1024); out += buf; out += L"\r\n";
+	}
+	if (out.empty()) return;
+
+	size_t bytes = (out.size() + 1) * sizeof(wchar_t);
+	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+	if (!hMem) return;
+	wchar_t *p = (wchar_t *)GlobalLock(hMem);
+	if (!p) { GlobalFree(hMem); return; }
+	memcpy(p, out.c_str(), bytes);
+	GlobalUnlock(hMem);
+
+	if (OpenClipboard(mainwnd))
+	{
+		EmptyClipboard();
+		SetClipboardData(CF_UNICODETEXT, hMem);
+		CloseClipboard();
+	}
+	else GlobalFree(hMem);
+}
+
 void ListViewInsertColumn(HWND list, int col, wchar_t *name, int width)
 {
 	LVCOLUMN column;
@@ -3712,39 +3938,803 @@ void ListViewSetItemText(HWND list, int item, int subitem, wchar_t *str)
 	ListView_SetItemText(list, item, subitem, str);
 }
 
+// Translates a double-null-terminated GetOpenFileName-style filter
+// ("Label\0*.ext\0Label2\0*.ext2\0\0") into the COMDLG_FILTERSPEC array
+// IFileDialog wants. The returned vectors own the wide strings; the spec
+// vector references them.
+static void BuildFilterSpec(const wchar_t *legacyFilter,
+	std::vector<std::wstring> &storage,
+	std::vector<COMDLG_FILTERSPEC> &spec)
+{
+	const wchar_t *p = legacyFilter;
+	while (p && *p)
+	{
+		std::wstring label = p;
+		p += label.size() + 1;
+		if (!*p) break;
+		std::wstring pattern = p;
+		p += pattern.size() + 1;
+		storage.push_back(std::move(label));
+		storage.push_back(std::move(pattern));
+	}
+	for (size_t i = 0; i + 1 < storage.size(); i += 2)
+	{
+		COMDLG_FILTERSPEC s;
+		s.pszName = storage[i].c_str();
+		s.pszSpec = storage[i + 1].c_str();
+		spec.push_back(s);
+	}
+}
+
+static bool ShowFileDialog(REFCLSID clsid, const wchar_t *legacyFilter,
+	const wchar_t *defExt, HWND parent, const wchar_t *title,
+	FILEOPENDIALOGOPTIONS extraFlags, char *outBuf)
+{
+	IFileDialog *dlg = nullptr;
+	if (FAILED(CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER,
+		IID_PPV_ARGS(&dlg)))) return false;
+
+	std::vector<std::wstring> storage;
+	std::vector<COMDLG_FILTERSPEC> spec;
+	BuildFilterSpec(legacyFilter, storage, spec);
+	if (!spec.empty()) dlg->SetFileTypes((UINT)spec.size(), spec.data());
+	if (defExt && *defExt) dlg->SetDefaultExtension(defExt);
+	if (title && *title) dlg->SetTitle(title);
+
+	// If the caller pre-filled outBuf with a suggested filename, seed the
+	// dialog's edit box with just the leaf name (paths break IFileDialog).
+	if (outBuf && outBuf[0])
+	{
+		const char *slash = strrchr(outBuf, '\\');
+		const char *fwd = strrchr(outBuf, '/');
+		if (fwd > slash) slash = fwd;
+		const char *leaf = slash ? slash + 1 : outBuf;
+		WideStringClass wleaf = leaf;
+		dlg->SetFileName(wleaf);
+	}
+
+	FILEOPENDIALOGOPTIONS opts = 0;
+	dlg->GetOptions(&opts);
+	dlg->SetOptions(opts | FOS_FORCEFILESYSTEM | extraFlags);
+
+	HRESULT hr = dlg->Show(parent);
+	if (FAILED(hr)) { dlg->Release(); return false; }
+
+	IShellItem *item = nullptr;
+	if (FAILED(dlg->GetResult(&item))) { dlg->Release(); return false; }
+
+	PWSTR path = nullptr;
+	bool ok = false;
+	if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) && path)
+	{
+		_snprintf(outBuf, MAX_PATH, "%ls", path);
+		CoTaskMemFree(path);
+		ok = true;
+	}
+	item->Release();
+	dlg->Release();
+	return ok;
+}
+
 bool GetOpenFile(char *buf, const wchar_t *filter, const wchar_t *dir, HWND parent, const wchar_t *title)
 {
-	wchar_t lBuf[MAX_PATH] = L"";
-	WideStringClass ws = buf;
-	wcscpy(lBuf, ws);
-	OPENFILENAME of;
+	(void)dir; // IFileOpenDialog uses MRU; legacy initial-dir argument is ignored.
+	return ShowFileDialog(CLSID_FileOpenDialog, filter, nullptr, parent, title,
+		FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST, buf);
+}
 
-	memset(&of, 0, sizeof(OPENFILENAME));
+bool GetSaveFile(char *buf, const wchar_t *filter, const wchar_t *defExt, HWND parent, const wchar_t *title)
+{
+	return ShowFileDialog(CLSID_FileSaveDialog, filter, defExt, parent, title,
+		FOS_OVERWRITEPROMPT | FOS_PATHMUSTEXIST, buf);
+}
 
-	of.lStructSize = sizeof(OPENFILENAME);
-	of.hwndOwner = parent;
-	of.hInstance = nullptr;
-	of.lpstrFilter = filter;
-	of.lpstrCustomFilter = nullptr;
-	of.nMaxCustFilter = 0;
-	of.nFilterIndex = 0;
-	of.lpstrFile = lBuf;
-	of.nMaxFile = MAX_PATH;
-	of.lpstrFileTitle = nullptr;
-	of.nMaxFileTitle = 0;
-	of.lpstrInitialDir = dir;
-	of.lpstrTitle = title;
-	of.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_EXPLORER;
-	of.nFileOffset = 0;
-	of.nFileExtension = 0;
-	of.lpstrDefExt = nullptr;
-	of.lCustData = 0;
-	of.lpfnHook = nullptr;
-	of.lpTemplateName = nullptr;
+// Top-level chunk-name predicate used by the "Animation dump" menu item.
+// Matches every top-level chunk that carries information needed to make sense
+// of an animation: the hierarchy (pivot list, needed to interpret pivot IDs)
+// and every animation flavour the format supports.
+static bool IsAnimationTopLevelChunk(const StringClass &name)
+{
+	const char *n = name.Peek_Buffer();
+	if (!n) return false;
+	return strcmp(n, "W3D_CHUNK_HIERARCHY") == 0
+		|| strcmp(n, "W3D_CHUNK_ANIMATION") == 0
+		|| strcmp(n, "W3D_CHUNK_COMPRESSED_ANIMATION") == 0
+		|| strcmp(n, "W3D_CHUNK_MORPH_ANIMATION") == 0;
+}
 
-	if (!GetOpenFileName(&of)) return false;
-	_snprintf(buf, MAX_PATH, "%ls", of.lpstrFile);
+extern ChunkData *master;
+extern char currentFilePath[MAX_PATH];
+
+// Forward decls of the lookup helpers (defined below near AddItems).
+static const char *FindInfoValue(const ChunkData *data, const char *name);
+static const ChunkData *FindMeshHeader(const ChunkData *meshChunk);
+
+// Returns the first direct subchunk named exactly `name`, or nullptr.
+static const ChunkData *FindSubchunk(const ChunkData *parent, const char *name)
+{
+	if (!parent) return nullptr;
+	for (int i = 0; i < parent->subchunks.Count(); i++)
+	{
+		if (parent->subchunks[i]->name == name) return parent->subchunks[i];
+	}
+	return nullptr;
+}
+
+// Resolves the ChunkData attached to the currently selected treeview item,
+// then walks up the visible tree to find an enclosing W3D_CHUNK_MESH. Returns
+// nullptr if no mesh is selected (selection is on the root, on a synthetic
+// container group, or selection is missing entirely).
+static const ChunkData *FindSelectedMesh()
+{
+	HTREEITEM sel = TreeView_GetSelection(treewnd);
+	while (sel)
+	{
+		ChunkData *cd = (ChunkData *)TreeViewGetItem(treewnd, sel);
+		if (cd && cd->name == "W3D_CHUNK_MESH") return cd;
+		sel = TreeView_GetParent(treewnd, sel);
+	}
+	return nullptr;
+}
+
+// Pulls "Texture Name:" out of a W3D_CHUNK_TEXTURE_NAME data block (the
+// parser stores the texture name under that key in W3D_CHUNK_TEXTURE_NAME).
+static const char *FindTextureName(const ChunkData *texChunk)
+{
+	if (!texChunk) return nullptr;
+	const ChunkData *nameChunk = FindSubchunk(texChunk, "W3D_CHUNK_TEXTURE_NAME");
+	if (!nameChunk) return nullptr;
+	for (int i = 0; i < nameChunk->data.Count(); i++)
+	{
+		const ChunkInfo *e = nameChunk->data[i];
+		if (e->name == "Texture Name:") return e->value.Peek_Buffer();
+	}
+	return nullptr;
+}
+
+// Plain-text texture dump for a single mesh. meshChunk is non-null. Each
+// texture entry writes its name plus any W3D_CHUNK_TEXTURE_INFO fields.
+static void DumpMeshTexturesText(FILE *out, const ChunkData *meshChunk)
+{
+	const ChunkData *header = FindMeshHeader(meshChunk);
+	const char *meshName  = header ? FindInfoValue(header, "MeshName")      : nullptr;
+	const char *container = header ? FindInfoValue(header, "ContainerName") : nullptr;
+	fprintf(out, "Mesh: %s%s%s%s\n",
+		(container && *container) ? container : "(legacy)",
+		(meshName && *meshName) ? "." : "",
+		(meshName && *meshName) ? meshName : "",
+		(!meshName || !*meshName) ? "" : "");
+
+	const ChunkData *textures = FindSubchunk(meshChunk, "W3D_CHUNK_TEXTURES");
+	if (!textures)
+	{
+		fputs("\t(no W3D_CHUNK_TEXTURES)\n\n", out);
+		return;
+	}
+	int count = 0;
+	for (int i = 0; i < textures->subchunks.Count(); i++)
+	{
+		const ChunkData *tex = textures->subchunks[i];
+		if (tex->name != "W3D_CHUNK_TEXTURE") continue;
+		const char *texName = FindTextureName(tex);
+		fprintf(out, "\t[%d] %s\n", count++, texName ? texName : "(unnamed)");
+		const ChunkData *info = FindSubchunk(tex, "W3D_CHUNK_TEXTURE_INFO");
+		if (info)
+		{
+			for (int k = 0; k < info->data.Count(); k++)
+			{
+				const ChunkInfo *e = info->data[k];
+				fprintf(out, "\t\t%s = %s\n",
+					e->name.Peek_Buffer(), e->value.Peek_Buffer());
+			}
+		}
+	}
+	if (count == 0) fputs("\t(no textures)\n", out);
+	fputc('\n', out);
+}
+
+// Beautified (HTML) texture entry block for a single mesh.
+static void DumpMeshTexturesHtml(FILE *out, const ChunkData *meshChunk)
+{
+	const ChunkData *header = FindMeshHeader(meshChunk);
+	const char *meshName  = header ? FindInfoValue(header, "MeshName")      : nullptr;
+	const char *container = header ? FindInfoValue(header, "ContainerName") : nullptr;
+
+	fputs("<details open><summary>", out);
+	HtmlEscape(out, (container && *container) ? container : "(legacy)");
+	if (meshName && *meshName) { fputs(".", out); HtmlEscape(out, meshName); }
+	fputs("</summary>\n", out);
+
+	const ChunkData *textures = FindSubchunk(meshChunk, "W3D_CHUNK_TEXTURES");
+	if (!textures)
+	{
+		fputs("<p><em>No W3D_CHUNK_TEXTURES.</em></p>\n</details>\n", out);
+		return;
+	}
+
+	fputs("<table><thead><tr><th>#</th><th>Texture</th><th>Attributes</th>"
+		"<th>AnimType</th><th>FrameCount</th><th>FrameRate</th></tr></thead><tbody>\n", out);
+
+	int count = 0;
+	for (int i = 0; i < textures->subchunks.Count(); i++)
+	{
+		const ChunkData *tex = textures->subchunks[i];
+		if (tex->name != "W3D_CHUNK_TEXTURE") continue;
+		const char *texName = FindTextureName(tex);
+		const ChunkData *info = FindSubchunk(tex, "W3D_CHUNK_TEXTURE_INFO");
+
+		StringClass attrs;
+		const char *animType   = nullptr;
+		const char *frameCount = nullptr;
+		const char *frameRate  = nullptr;
+		if (info)
+		{
+			for (int k = 0; k < info->data.Count(); k++)
+			{
+				const ChunkInfo *e = info->data[k];
+				if (e->name == "Attributes" && e->type == "flag")
+				{
+					if (attrs.Get_Length()) attrs += " | ";
+					attrs += e->value;
+				}
+				else if (e->name == "Texture.AnimType")   animType   = e->value.Peek_Buffer();
+				else if (e->name == "Texture.FrameCount") frameCount = e->value.Peek_Buffer();
+				else if (e->name == "Texture.FrameRate")  frameRate  = e->value.Peek_Buffer();
+				else if (e->name == "AnimType" && e->type == "string") animType = e->value.Peek_Buffer();
+			}
+		}
+
+		fprintf(out, "<tr><td>%d</td><td>", count++);
+		HtmlEscape(out, texName ? texName : "(unnamed)");
+		fputs("</td><td>", out); HtmlEscape(out, attrs.Get_Length() ? attrs.Peek_Buffer() : "-");
+		fputs("</td><td>", out); HtmlEscape(out, animType   ? animType   : "-");
+		fputs("</td><td>", out); HtmlEscape(out, frameCount ? frameCount : "-");
+		fputs("</td><td>", out); HtmlEscape(out, frameRate  ? frameRate  : "-");
+		fputs("</td></tr>\n", out);
+	}
+	if (count == 0)
+		fputs("<tr><td colspan=\"6\"><em>No textures.</em></td></tr>\n", out);
+	fputs("</tbody></table>\n</details>\n", out);
+}
+
+// Writes a texture-only dump. When meshChunk is non-null, only that mesh's
+// W3D_CHUNK_TEXTURES is dumped; otherwise every W3D_CHUNK_MESH at top level
+// is included. Mirrors DumpMasterToPath: plain-text or HTML based on beautify.
+static bool DumpTexturesToPath(const char *path, const ChunkData *meshChunk, bool beautify)
+{
+	if (!master) return false;
+	FILE *out = fopen(path, "wt");
+	if (!out) return false;
+
+	if (beautify)
+	{
+		fputs("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n", out);
+		fprintf(out, "<title>Textures - "); HtmlEscape(out, currentFilePath); fputs("</title>\n", out);
+		fputs("<style>\n"
+			"body{font-family:Consolas,'Courier New',monospace;font-size:13px;"
+			"margin:1em 2em;background:#1e1e1e;color:#d4d4d4;}\n"
+			"h1{font-size:1.1em;color:#9cdcfe;margin-bottom:.5em;}\n"
+			"details{margin:.2em 0 .2em 1em;}\n"
+			"summary{cursor:pointer;font-weight:bold;color:#4ec9b0;"
+			"list-style:disclosure-closed;padding:.1em .2em;}\n"
+			"details[open]>summary{list-style:disclosure-open;color:#ce9178;}\n"
+			"table{border-collapse:collapse;margin:.3em 0 .3em 1.2em;font-size:12px;}\n"
+			"th{text-align:left;padding:2px 10px;background:#2d2d2d;color:#9cdcfe;"
+			"border-bottom:1px solid #444;}\n"
+			"td{padding:1px 10px;border-bottom:1px solid #2a2a2a;}\n"
+			"td:first-child{color:#dcdcaa;}\n"
+			"td:nth-child(2){color:#ce9178;}\n"
+			"tr:hover td{background:#2a2a2a;}\n"
+			"</style>\n</head>\n<body>\n", out);
+		fprintf(out, "<h1>Textures - "); HtmlEscape(out, currentFilePath); fputs("</h1>\n", out);
+
+		if (meshChunk)
+		{
+			DumpMeshTexturesHtml(out, meshChunk);
+		}
+		else
+		{
+			for (int i = 0; i < master->subchunks.Count(); i++)
+			{
+				if (master->subchunks[i]->name == "W3D_CHUNK_MESH")
+					DumpMeshTexturesHtml(out, master->subchunks[i]);
+			}
+		}
+		fputs("<p style=\"color:#f44;margin-top:1em;\">Generated by CABAL.</p>\n"
+			"</body>\n</html>\n", out);
+	}
+	else
+	{
+		fprintf(out, "Textures dump: %s\n\n", currentFilePath);
+		if (meshChunk)
+		{
+			DumpMeshTexturesText(out, meshChunk);
+		}
+		else
+		{
+			for (int i = 0; i < master->subchunks.Count(); i++)
+			{
+				if (master->subchunks[i]->name == "W3D_CHUNK_MESH")
+					DumpMeshTexturesText(out, master->subchunks[i]);
+			}
+		}
+		fputs("Generated by CABAL.\n", out);
+	}
+
+	fclose(out);
 	return true;
+}
+
+// Counts how many direct subchunks of `parent` are named `name`.
+static int CountSubchunks(const ChunkData *parent, const char *name)
+{
+	if (!parent) return 0;
+	int n = 0;
+	for (int i = 0; i < parent->subchunks.Count(); i++)
+	{
+		if (parent->subchunks[i]->name == name) ++n;
+	}
+	return n;
+}
+
+// Writes the animation summary as HTML. Called only in beautify mode.
+static void WriteAnimationSummary(FILE *out)
+{
+	for (int i = 0; i < master->subchunks.Count(); i++)
+	{
+		const ChunkData *sub = master->subchunks[i];
+		if (sub->name == "W3D_CHUNK_HIERARCHY")
+		{
+			const ChunkData *header = FindSubchunk(sub, "W3D_CHUNK_HIERARCHY_HEADER");
+			const char *name = header ? FindInfoValue(header, "Name") : nullptr;
+			const char *numPivots = header ? FindInfoValue(header, "NumPivots") : nullptr;
+			fputs("<details><summary>Hierarchy: ", out); HtmlEscape(out, name ? name : "(unknown)");
+			fprintf(out, " &mdash; %s pivots</summary>\n", numPivots ? numPivots : "?");
+
+			const ChunkData *pivots = FindSubchunk(sub, "W3D_CHUNK_PIVOTS");
+			if (pivots)
+			{
+				fputs("<table><thead><tr><th>#</th><th>Name</th><th>Parent</th></tr></thead><tbody>\n", out);
+				int total = numPivots ? atoi(numPivots) : 0;
+				for (int p = 0; p < total; p++)
+				{
+					char k1[64], k2[64];
+					sprintf(k1, "Pivot[%d].Name", p);
+					sprintf(k2, "Pivot[%d].ParentIdx", p);
+					const char *pname  = FindInfoValue(pivots, k1);
+					const char *parent = FindInfoValue(pivots, k2);
+					fprintf(out, "<tr><td>%d</td><td>", p);
+					HtmlEscape(out, pname ? pname : "?");
+					fputs("</td><td>", out);
+					HtmlEscape(out, parent ? parent : "?");
+					fputs("</td></tr>\n", out);
+				}
+				fputs("</tbody></table>\n", out);
+			}
+			fputs("</details>\n", out);
+		}
+		else if (sub->name == "W3D_CHUNK_ANIMATION" || sub->name == "W3D_CHUNK_COMPRESSED_ANIMATION")
+		{
+			bool compressed = (sub->name == "W3D_CHUNK_COMPRESSED_ANIMATION");
+			const ChunkData *header = FindSubchunk(sub,
+				compressed ? "W3D_CHUNK_COMPRESSED_ANIMATION_HEADER" : "W3D_CHUNK_ANIMATION_HEADER");
+			const char *name   = header ? FindInfoValue(header, "Name")      : nullptr;
+			const char *frames = header ? FindInfoValue(header, "NumFrames") : nullptr;
+			const char *rate   = header ? FindInfoValue(header, "FrameRate") : nullptr;
+			const char *flav   = compressed ? (header ? FindInfoValue(header, "Flavor") : nullptr) : nullptr;
+
+			const char *motionChunk = compressed ? "W3D_CHUNK_COMPRESSED_ANIMATION_CHANNEL" : "W3D_CHUNK_ANIMATION_CHANNEL";
+			const char *bitChunk    = compressed ? "W3D_CHUNK_COMPRESSED_BIT_CHANNEL"        : "W3D_CHUNK_BIT_CHANNEL";
+			int motionCount = CountSubchunks(sub, motionChunk);
+			int bitCount    = CountSubchunks(sub, bitChunk);
+
+			fputs("<details><summary>", out);
+			fputs(compressed ? "Compressed Animation: " : "Animation: ", out);
+			HtmlEscape(out, name ? name : "(unknown)");
+			fprintf(out, " &mdash; %s frames @ %s fps",
+				frames ? frames : "?", rate ? rate : "?");
+			if (flav) { fputs(", flavor=", out); HtmlEscape(out, flav); }
+			fprintf(out, " &mdash; %d motion, %d bit channels</summary>\n", motionCount, bitCount);
+
+			if (compressed)
+				fputs("<table><thead><tr><th>Pivot</th><th>Kind</th><th>Channel Type</th><th>Codes</th></tr></thead><tbody>\n", out);
+			else
+				fputs("<table><thead><tr><th>Pivot</th><th>Kind</th><th>Channel Type</th><th>First Frame</th><th>Last Frame</th></tr></thead><tbody>\n", out);
+
+			for (int c = 0; c < sub->subchunks.Count(); c++)
+			{
+				const ChunkData *ch = sub->subchunks[c];
+				bool isMotion = (ch->name == motionChunk);
+				bool isBit    = (ch->name == bitChunk);
+				if (!isMotion && !isBit) continue;
+				const char *pivot = FindInfoValue(ch, "Pivot");
+				const char *type  = FindInfoValue(ch, "ChannelType");
+				fputs("<tr><td>", out); HtmlEscape(out, pivot ? pivot : "?");
+				fputs("</td><td>", out); fputs(isMotion ? "motion" : "bit", out);
+				fputs("</td><td>", out); HtmlEscape(out, type ? type : "?");
+				if (compressed)
+				{
+					const char *codes = FindInfoValue(ch, "NumTimeCodes");
+					if (!codes) codes = FindInfoValue(ch, "NumFrames");
+					fputs("</td><td>", out); HtmlEscape(out, codes ? codes : "?");
+				}
+				else
+				{
+					const char *first = FindInfoValue(ch, "FirstFrame");
+					const char *last  = FindInfoValue(ch, "LastFrame");
+					fputs("</td><td>", out); HtmlEscape(out, first ? first : "?");
+					fputs("</td><td>", out); HtmlEscape(out, last  ? last  : "?");
+				}
+				fputs("</td></tr>\n", out);
+			}
+			fputs("</tbody></table>\n</details>\n", out);
+		}
+	}
+}
+
+// Writes the parsed chunk tree to <path>.txt (and unknown bytes to <path>.unk
+// when any are present). When animationOnly is true, only the top-level
+// subchunks matched by IsAnimationTopLevelChunk are emitted. When beautify
+// is true, applies the cosmetic clean-up rules in DumpData and (for
+// animation dumps) prepends a one-page summary table.
+static bool DumpMasterToPath(const char *path, bool animationOnly, bool beautify)
+{
+	if (!master) return false;
+
+	StringClass outPath = path;
+	StringClass unkPath = path;
+	unkPath += ".unk";
+
+	FILE *out = fopen(outPath, "wt");
+	if (!out) return false;
+	FILE *unk = fopen(unkPath, "wt");
+	if (!unk) { fclose(out); return false; }
+
+	if (beautify)
+	{
+		fputs("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n", out);
+		fputs("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n", out);
+		fprintf(out, "<title>"); HtmlEscape(out, currentFilePath); fputs("</title>\n", out);
+		fputs("<style>\n"
+			/* ── shared structural styles ── */
+			"*{box-sizing:border-box;}\n"
+			"body{font-family:Consolas,'Courier New',monospace;font-size:13px;margin:1em 2em;}\n"
+			"h1{font-size:1.1em;margin-bottom:.5em;}\n"
+			"h2{font-size:.9em;margin:1em 0 .3em;}\n"
+			"details{margin:.15em 0 .15em 1em;}\n"
+			"summary{cursor:pointer;font-weight:bold;padding:.1em .2em;border-radius:3px;"
+			"list-style:disclosure-closed;}\n"
+			"details[open]>summary{list-style:disclosure-open;}\n"
+			"table{border-collapse:collapse;margin:.3em 0 .3em 1.2em;font-size:12px;}\n"
+			"th{text-align:left;padding:2px 10px;}\n"
+			"td{padding:1px 10px;}\n"
+			"#theme-bar{position:fixed;top:.6em;right:1em;font-family:sans-serif;font-size:12px;}\n"
+			"#theme-bar select{font-size:12px;padding:2px 4px;cursor:pointer;}\n"
+			/* ── Dark (default) ── */
+			"body.t-dark{background:#1e1e1e;color:#d4d4d4;}\n"
+			"body.t-dark h1,body.t-dark h2{color:#9cdcfe;}\n"
+			"body.t-dark summary{color:#4ec9b0;}\n"
+			"body.t-dark details[open]>summary{color:#ce9178;}\n"
+			"body.t-dark th{background:#2d2d2d;color:#9cdcfe;border-bottom:1px solid #444;}\n"
+			"body.t-dark td{border-bottom:1px solid #2a2a2a;color:#d4d4d4;}\n"
+			"body.t-dark td:first-child{color:#dcdcaa;}\n"
+			"body.t-dark td:nth-child(2){color:#569cd6;}\n"
+			"body.t-dark tr:hover td{background:#2a2a2a;}\n"
+			"body.t-dark #theme-bar select{background:#2d2d2d;color:#d4d4d4;border:1px solid #555;}\n"
+			/* ── Light ── */
+			"body.t-light{background:#ffffff;color:#1e1e1e;}\n"
+			"body.t-light h1,body.t-light h2{color:#0050a0;}\n"
+			"body.t-light summary{color:#007070;}\n"
+			"body.t-light details[open]>summary{color:#a03000;}\n"
+			"body.t-light th{background:#e8e8e8;color:#0050a0;border-bottom:1px solid #bbb;}\n"
+			"body.t-light td{border-bottom:1px solid #e0e0e0;color:#1e1e1e;}\n"
+			"body.t-light td:first-child{color:#7d5c00;}\n"
+			"body.t-light td:nth-child(2){color:#0050a0;}\n"
+			"body.t-light tr:hover td{background:#f0f0f0;}\n"
+			"body.t-light #theme-bar select{background:#f5f5f5;color:#1e1e1e;border:1px solid #bbb;}\n"
+			/* ── Monokai ── */
+			"body.t-monokai{background:#272822;color:#f8f8f2;}\n"
+			"body.t-monokai h1,body.t-monokai h2{color:#a6e22e;}\n"
+			"body.t-monokai summary{color:#66d9e8;}\n"
+			"body.t-monokai details[open]>summary{color:#fd971f;}\n"
+			"body.t-monokai th{background:#3e3d32;color:#a6e22e;border-bottom:1px solid #555;}\n"
+			"body.t-monokai td{border-bottom:1px solid #3e3d32;color:#f8f8f2;}\n"
+			"body.t-monokai td:first-child{color:#e6db74;}\n"
+			"body.t-monokai td:nth-child(2){color:#66d9e8;}\n"
+			"body.t-monokai tr:hover td{background:#3e3d32;}\n"
+			"body.t-monokai #theme-bar select{background:#3e3d32;color:#f8f8f2;border:1px solid #555;}\n"
+			/* ── Solarized Dark ── */
+			"body.t-solarized{background:#002b36;color:#839496;}\n"
+			"body.t-solarized h1,body.t-solarized h2{color:#268bd2;}\n"
+			"body.t-solarized summary{color:#2aa198;}\n"
+			"body.t-solarized details[open]>summary{color:#cb4b16;}\n"
+			"body.t-solarized th{background:#073642;color:#268bd2;border-bottom:1px solid #586e75;}\n"
+			"body.t-solarized td{border-bottom:1px solid #073642;color:#839496;}\n"
+			"body.t-solarized td:first-child{color:#b58900;}\n"
+			"body.t-solarized td:nth-child(2){color:#268bd2;}\n"
+			"body.t-solarized tr:hover td{background:#073642;}\n"
+			"body.t-solarized #theme-bar select{background:#073642;color:#839496;border:1px solid #586e75;}\n"
+			/* ── High Contrast ── */
+			"body.t-hc{background:#000000;color:#ffffff;}\n"
+			"body.t-hc h1,body.t-hc h2{color:#ffff00;}\n"
+			"body.t-hc summary{color:#00ff00;}\n"
+			"body.t-hc details[open]>summary{color:#ff9900;}\n"
+			"body.t-hc th{background:#1a1a1a;color:#ffff00;border-bottom:1px solid #fff;}\n"
+			"body.t-hc td{border-bottom:1px solid #333;color:#ffffff;}\n"
+			"body.t-hc td:first-child{color:#ffff00;}\n"
+			"body.t-hc td:nth-child(2){color:#00cfff;}\n"
+			"body.t-hc tr:hover td{background:#1a1a1a;}\n"
+			"body.t-hc #theme-bar select{background:#1a1a1a;color:#ffffff;border:1px solid #fff;}\n"
+			/* ── Dracula ── */
+			"body.t-dracula{background:#282a36;color:#f8f8f2;}\n"
+			"body.t-dracula h1,body.t-dracula h2{color:#bd93f9;}\n"
+			"body.t-dracula summary{color:#8be9fd;}\n"
+			"body.t-dracula details[open]>summary{color:#ff79c6;}\n"
+			"body.t-dracula th{background:#44475a;color:#bd93f9;border-bottom:1px solid #6272a4;}\n"
+			"body.t-dracula td{border-bottom:1px solid #44475a;color:#f8f8f2;}\n"
+			"body.t-dracula td:first-child{color:#f1fa8c;}\n"
+			"body.t-dracula td:nth-child(2){color:#8be9fd;}\n"
+			"body.t-dracula tr:hover td{background:#44475a;}\n"
+			"body.t-dracula #theme-bar select{background:#44475a;color:#f8f8f2;border:1px solid #6272a4;}\n"
+			/* ── Nord ── */
+			"body.t-nord{background:#2e3440;color:#d8dee9;}\n"
+			"body.t-nord h1,body.t-nord h2{color:#88c0d0;}\n"
+			"body.t-nord summary{color:#8fbcbb;}\n"
+			"body.t-nord details[open]>summary{color:#d08770;}\n"
+			"body.t-nord th{background:#3b4252;color:#88c0d0;border-bottom:1px solid #4c566a;}\n"
+			"body.t-nord td{border-bottom:1px solid #3b4252;color:#d8dee9;}\n"
+			"body.t-nord td:first-child{color:#ebcb8b;}\n"
+			"body.t-nord td:nth-child(2){color:#81a1c1;}\n"
+			"body.t-nord tr:hover td{background:#3b4252;}\n"
+			"body.t-nord #theme-bar select{background:#3b4252;color:#d8dee9;border:1px solid #4c566a;}\n"
+			/* ── Tokyo Night ── */
+			"body.t-tokyo{background:#1a1b2e;color:#a9b1d6;}\n"
+			"body.t-tokyo h1,body.t-tokyo h2{color:#7aa2f7;}\n"
+			"body.t-tokyo summary{color:#2ac3de;}\n"
+			"body.t-tokyo details[open]>summary{color:#ff9e64;}\n"
+			"body.t-tokyo th{background:#24283b;color:#7aa2f7;border-bottom:1px solid #414868;}\n"
+			"body.t-tokyo td{border-bottom:1px solid #24283b;color:#a9b1d6;}\n"
+			"body.t-tokyo td:first-child{color:#e0af68;}\n"
+			"body.t-tokyo td:nth-child(2){color:#2ac3de;}\n"
+			"body.t-tokyo tr:hover td{background:#24283b;}\n"
+			"body.t-tokyo #theme-bar select{background:#24283b;color:#a9b1d6;border:1px solid #414868;}\n"
+			/* ── Gruvbox Dark ── */
+			"body.t-gruvbox{background:#282828;color:#ebdbb2;}\n"
+			"body.t-gruvbox h1,body.t-gruvbox h2{color:#83a598;}\n"
+			"body.t-gruvbox summary{color:#8ec07c;}\n"
+			"body.t-gruvbox details[open]>summary{color:#fe8019;}\n"
+			"body.t-gruvbox th{background:#3c3836;color:#83a598;border-bottom:1px solid #504945;}\n"
+			"body.t-gruvbox td{border-bottom:1px solid #3c3836;color:#ebdbb2;}\n"
+			"body.t-gruvbox td:first-child{color:#fabd2f;}\n"
+			"body.t-gruvbox td:nth-child(2){color:#83a598;}\n"
+			"body.t-gruvbox tr:hover td{background:#3c3836;}\n"
+			"body.t-gruvbox #theme-bar select{background:#3c3836;color:#ebdbb2;border:1px solid #504945;}\n"
+			/* ── One Dark ── */
+			"body.t-onedark{background:#282c34;color:#abb2bf;}\n"
+			"body.t-onedark h1,body.t-onedark h2{color:#61afef;}\n"
+			"body.t-onedark summary{color:#56b6c2;}\n"
+			"body.t-onedark details[open]>summary{color:#e5c07b;}\n"
+			"body.t-onedark th{background:#2c313c;color:#61afef;border-bottom:1px solid #3e4451;}\n"
+			"body.t-onedark td{border-bottom:1px solid #2c313c;color:#abb2bf;}\n"
+			"body.t-onedark td:first-child{color:#e5c07b;}\n"
+			"body.t-onedark td:nth-child(2){color:#56b6c2;}\n"
+			"body.t-onedark tr:hover td{background:#2c313c;}\n"
+			"body.t-onedark #theme-bar select{background:#2c313c;color:#abb2bf;border:1px solid #3e4451;}\n"
+			/* ── Gruvbox Light ── */
+			"body.t-gruvbox-light{background:#fbf1c7;color:#3c3836;}\n"
+			"body.t-gruvbox-light h1,body.t-gruvbox-light h2{color:#076678;}\n"
+			"body.t-gruvbox-light summary{color:#427b58;}\n"
+			"body.t-gruvbox-light details[open]>summary{color:#af3a03;}\n"
+			"body.t-gruvbox-light th{background:#ebdbb2;color:#076678;border-bottom:1px solid #bdae93;}\n"
+			"body.t-gruvbox-light td{border-bottom:1px solid #ebdbb2;color:#3c3836;}\n"
+			"body.t-gruvbox-light td:first-child{color:#b57614;}\n"
+			"body.t-gruvbox-light td:nth-child(2){color:#076678;}\n"
+			"body.t-gruvbox-light tr:hover td{background:#ebdbb2;}\n"
+			"body.t-gruvbox-light #theme-bar select{background:#ebdbb2;color:#3c3836;border:1px solid #bdae93;}\n"
+			/* ── GitHub Light ── */
+			"body.t-github{background:#ffffff;color:#24292e;}\n"
+			"body.t-github h1,body.t-github h2{color:#0366d6;}\n"
+			"body.t-github summary{color:#22863a;}\n"
+			"body.t-github details[open]>summary{color:#e36209;}\n"
+			"body.t-github th{background:#f6f8fa;color:#0366d6;border-bottom:1px solid #dfe2e5;}\n"
+			"body.t-github td{border-bottom:1px solid #eaecef;color:#24292e;}\n"
+			"body.t-github td:first-child{color:#6f42c1;}\n"
+			"body.t-github td:nth-child(2){color:#0366d6;}\n"
+			"body.t-github tr:hover td{background:#f6f8fa;}\n"
+			"body.t-github #theme-bar select{background:#f6f8fa;color:#24292e;border:1px solid #dfe2e5;}\n"
+			/* ── Solarized Light ── */
+			"body.t-solarized-light{background:#fdf6e3;color:#657b83;}\n"
+			"body.t-solarized-light h1,body.t-solarized-light h2{color:#268bd2;}\n"
+			"body.t-solarized-light summary{color:#2aa198;}\n"
+			"body.t-solarized-light details[open]>summary{color:#cb4b16;}\n"
+			"body.t-solarized-light th{background:#eee8d5;color:#268bd2;border-bottom:1px solid #93a1a1;}\n"
+			"body.t-solarized-light td{border-bottom:1px solid #eee8d5;color:#657b83;}\n"
+			"body.t-solarized-light td:first-child{color:#b58900;}\n"
+			"body.t-solarized-light td:nth-child(2){color:#268bd2;}\n"
+			"body.t-solarized-light tr:hover td{background:#eee8d5;}\n"
+			"body.t-solarized-light #theme-bar select{background:#eee8d5;color:#657b83;border:1px solid #93a1a1;}\n"
+			/* ── Retro/CRT ── */
+			"body.t-retro{background:#0a0a0a;color:#00ff00;}\n"
+			"body.t-retro h1,body.t-retro h2{color:#00ff00;text-shadow:0 0 6px #00ff00;}\n"
+			"body.t-retro summary{color:#00cc00;}\n"
+			"body.t-retro details[open]>summary{color:#00ff00;text-shadow:0 0 4px #00ff00;}\n"
+			"body.t-retro th{background:#001a00;color:#00ff00;border-bottom:1px solid #00ff00;}\n"
+			"body.t-retro td{border-bottom:1px solid #002200;color:#00ee00;}\n"
+			"body.t-retro td:first-child{color:#00ff00;}\n"
+			"body.t-retro td:nth-child(2){color:#00cc00;}\n"
+			"body.t-retro tr:hover td{background:#001a00;}\n"
+			"body.t-retro #theme-bar select{background:#001a00;color:#00ff00;border:1px solid #00ff00;}\n"
+			/* ── Cyberpunk ── */
+			"body.t-cyberpunk{background:#0d0d1a;color:#e0e0ff;}\n"
+			"body.t-cyberpunk h1,body.t-cyberpunk h2{color:#ff2d78;text-shadow:0 0 6px #ff2d78;}\n"
+			"body.t-cyberpunk summary{color:#00fff9;}\n"
+			"body.t-cyberpunk details[open]>summary{color:#ff2d78;}\n"
+			"body.t-cyberpunk th{background:#1a0a2e;color:#00fff9;border-bottom:1px solid #ff2d78;}\n"
+			"body.t-cyberpunk td{border-bottom:1px solid #1a0a2e;color:#e0e0ff;}\n"
+			"body.t-cyberpunk td:first-child{color:#ffe600;}\n"
+			"body.t-cyberpunk td:nth-child(2){color:#00fff9;}\n"
+			"body.t-cyberpunk tr:hover td{background:#1a0a2e;}\n"
+			"body.t-cyberpunk #theme-bar select{background:#1a0a2e;color:#e0e0ff;border:1px solid #ff2d78;}\n"
+			"</style>\n"
+			"<script>\n"
+			"function setTheme(t){"
+			"document.body.className='t-'+t;"
+			"localStorage.setItem('wdump-theme',t);}\n"
+			"window.onload=function(){"
+			"var s=localStorage.getItem('wdump-theme')||'dark';"
+			"setTheme(s);"
+			"document.getElementById('theme-sel').value=s;};\n"
+			"</script>\n"
+			"</head>\n<body class=\"t-dark\">\n", out);
+
+		fputs("<div id=\"theme-bar\">Theme: "
+			"<select id=\"theme-sel\" onchange=\"setTheme(this.value)\">"
+			"<option value=\"dark\">Dark</option>"
+			"<option value=\"light\">Light</option>"
+			"<option value=\"monokai\">Monokai</option>"
+			"<option value=\"solarized\">Solarized Dark</option>"
+			"<option value=\"hc\">High Contrast</option>"
+			"<optgroup label=\"── Dark Variants ──\">"
+			"<option value=\"dracula\">Dracula</option>"
+			"<option value=\"nord\">Nord</option>"
+			"<option value=\"tokyo\">Tokyo Night</option>"
+			"<option value=\"gruvbox\">Gruvbox Dark</option>"
+			"<option value=\"onedark\">One Dark</option>"
+			"</optgroup>"
+			"<optgroup label=\"── Light Variants ──\">"
+			"<option value=\"gruvbox-light\">Gruvbox Light</option>"
+			"<option value=\"github\">GitHub Light</option>"
+			"<option value=\"solarized-light\">Solarized Light</option>"
+			"</optgroup>"
+			"<optgroup label=\"── Specialty ──\">"
+			"<option value=\"retro\">Retro / CRT</option>"
+			"<option value=\"cyberpunk\">Cyberpunk</option>"
+			"</optgroup>"
+			"</select></div>\n", out);
+
+		fprintf(out, "<h1>File Loaded: "); HtmlEscape(out, currentFilePath); fputs("</h1>\n", out);
+
+		// Animation summary block (only when relevant chunks are present).
+		bool hasAnimContent = false;
+		for (int i = 0; i < master->subchunks.Count(); i++)
+		{
+			if (IsAnimationTopLevelChunk(master->subchunks[i]->name))
+			{
+				hasAnimContent = true;
+				break;
+			}
+		}
+		if (hasAnimContent)
+			WriteAnimationSummary(out);
+
+		// Group W3D_CHUNK_MESH chunks under their ContainerName, mirroring the
+		// treeview layout. One open container <details> at a time; close it
+		// when the container changes or a non-mesh chunk is encountered.
+		std::string openContainer;
+		for (int i = 0; i < master->subchunks.Count(); i++)
+		{
+			ChunkData *sub = master->subchunks[i];
+			if (animationOnly && !IsAnimationTopLevelChunk(sub->name)) continue;
+
+			if (sub->name == "W3D_CHUNK_MESH")
+			{
+				const ChunkData *header   = FindMeshHeader(sub);
+				const char *meshName      = header ? FindInfoValue(header, "MeshName")      : nullptr;
+				const char *containerName = header ? FindInfoValue(header, "ContainerName") : nullptr;
+				std::string key = (containerName && *containerName) ? containerName : "(legacy)";
+
+				if (key != openContainer)
+				{
+					if (!openContainer.empty())
+						fputs("</details>\n", out);
+					fputs("<details open><summary>", out);
+					HtmlEscape(out, key.c_str());
+					fputs("</summary>\n", out);
+					openContainer = key;
+				}
+
+				fputs("<details><summary>", out);
+				HtmlEscape(out, (meshName && *meshName) ? meshName : sub->name.Peek_Buffer());
+				fputs("</summary>\n", out);
+				DumpDataHtml(out, unk, sub, 0);
+				fputs("</details>\n", out);
+			}
+			else
+			{
+				if (!openContainer.empty())
+				{
+					fputs("</details>\n", out);
+					openContainer.clear();
+				}
+				fputs("<details open><summary>", out);
+				HtmlEscape(out, sub->name.Peek_Buffer());
+				fputs("</summary>\n", out);
+				DumpDataHtml(out, unk, sub, 0);
+				fputs("</details>\n", out);
+			}
+		}
+		if (!openContainer.empty())
+			fputs("</details>\n", out);
+
+		fputs("<p style=\"color:#f44;margin-top:1em;\">Generated by CABAL.</p>\n"
+			"</body>\n</html>\n", out);
+	}
+	else
+	{
+		fprintf(out, "File Loaded: %s\n\n", currentFilePath);
+		for (int i = 0; i < master->subchunks.Count(); i++)
+		{
+			ChunkData *sub = master->subchunks[i];
+			if (animationOnly && !IsAnimationTopLevelChunk(sub->name)) continue;
+			fprintf(out, "%s\n", sub->name.Peek_Buffer());
+			DumpData(out, unk, sub, "\t", false);
+		}
+		fputs("Generated by CABAL.\n", out);
+	}
+
+	fclose(unk);
+	fclose(out);
+
+	// Mirror the CLI behaviour: drop the .unk file when nothing unknown was logged.
+	HANDLE h = CreateFileA(unkPath, GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (h != INVALID_HANDLE_VALUE)
+	{
+		DWORD size = GetFileSize(h, nullptr);
+		CloseHandle(h);
+		if (!size) DeleteFileA(unkPath);
+	}
+	return true;
+}
+
+// Looks up a named ChunkInfo on a ChunkData (linear scan; parsed mesh
+// headers contain at most a few dozen entries).
+static const char *FindInfoValue(const ChunkData *data, const char *name)
+{
+	if (!data) return nullptr;
+	for (int i = 0; i < data->data.Count(); i++)
+	{
+		if (data->data[i]->name == name)
+		{
+			return data->data[i]->value.Peek_Buffer();
+		}
+	}
+	return nullptr;
+}
+
+// Locates the W3D_CHUNK_MESH_HEADER or W3D_CHUNK_MESH_HEADER3 child of a
+// W3D_CHUNK_MESH and returns it; nullptr if neither is present.
+static const ChunkData *FindMeshHeader(const ChunkData *meshChunk)
+{
+	for (int i = 0; i < meshChunk->subchunks.Count(); i++)
+	{
+		const ChunkData *sc = meshChunk->subchunks[i];
+		if (sc->name == "W3D_CHUNK_MESH_HEADER" ||
+			sc->name == "W3D_CHUNK_MESH_HEADER3")
+		{
+			return sc;
+		}
+	}
+	return nullptr;
 }
 
 void AddItems(ChunkData *data, HTREEITEM item)
@@ -3758,7 +4748,120 @@ void AddItems(ChunkData *data, HTREEITEM item)
 	}
 }
 
+// Inserts a single W3D_CHUNK_MESH under a parent treeview node, displaying
+// the MeshName from its header (falls back to the raw chunk name).
+static void AddMeshItem(ChunkData *meshChunk, HTREEITEM parent)
+{
+	const ChunkData *header = FindMeshHeader(meshChunk);
+	const char *meshName = header ? FindInfoValue(header, "MeshName") : nullptr;
+	WideStringClass label = (meshName && *meshName) ? meshName : meshChunk->name.Peek_Buffer();
+	HTREEITEM mesh = TreeViewInsertItem(treewnd, label, parent, TVI_LAST);
+	TreeViewSetItem(treewnd, mesh, (LPARAM)meshChunk);
+	for (int i = 0; i < meshChunk->subchunks.Count(); i++)
+	{
+		AddItems(meshChunk->subchunks[i], mesh);
+	}
+}
+
+// Populates the treeview from a master ChunkData: top-level meshes are
+// grouped under synthetic nodes named after their ContainerName, with the
+// group inserted at the first mesh's original position. Legacy meshes
+// (W3D_CHUNK_MESH_HEADER without a container) all land under "(legacy)".
+// Non-mesh top-level chunks are inserted in place via AddItems.
+static void AddTopLevelItems(ChunkData *root)
+{
+	std::unordered_map<std::string, HTREEITEM> containerNodes;
+	for (int i = 0; i < root->subchunks.Count(); i++)
+	{
+		ChunkData *child = root->subchunks[i];
+		if (child->name != "W3D_CHUNK_MESH")
+		{
+			AddItems(child, TVI_ROOT);
+			continue;
+		}
+		const ChunkData *header = FindMeshHeader(child);
+		const char *container = header ? FindInfoValue(header, "ContainerName") : nullptr;
+		std::string key = (container && *container) ? container : "(legacy)";
+		auto it = containerNodes.find(key);
+		HTREEITEM group;
+		if (it == containerNodes.end())
+		{
+			WideStringClass label = key.c_str();
+			group = TreeViewInsertItem(treewnd, label, TVI_ROOT, TVI_LAST);
+			TreeViewSetItem(treewnd, group, (LPARAM)0);
+			containerNodes.emplace(std::move(key), group);
+		}
+		else
+		{
+			group = it->second;
+		}
+		AddMeshItem(child, group);
+	}
+}
+
 ChunkData *master = nullptr;
+char currentFilePath[MAX_PATH] = "";
+bool beautifyDump = true;
+
+// Returns the path stem (everything before the final dot, after the final
+// directory separator) of the currently loaded file. Used to prefill dump
+// save dialogs with "<basename>_FULL.txt" / "<basename>_Ani.txt".
+static StringClass CurrentFileStem()
+{
+	const char *slash = strrchr(currentFilePath, '\\');
+	const char *fwd = strrchr(currentFilePath, '/');
+	if (fwd > slash) slash = fwd;
+	const char *base = slash ? slash + 1 : currentFilePath;
+	const char *dot = strrchr(base, '.');
+	char buf[MAX_PATH];
+	if (dot)
+	{
+		size_t len = (size_t)(dot - base);
+		if (len >= sizeof(buf)) len = sizeof(buf) - 1;
+		memcpy(buf, base, len);
+		buf[len] = '\0';
+	}
+	else
+	{
+		strncpy(buf, base, sizeof(buf) - 1);
+		buf[sizeof(buf) - 1] = '\0';
+	}
+	return StringClass(buf);
+}
+
+// Loads a w3d-style file by absolute path: tears down the previous tree,
+// parses chunks into a fresh master, and repopulates the treeview. Shared
+// by the File -> Open menu and the WM_DROPFILES drag-and-drop handler.
+static void LoadFile(const char *path)
+{
+	TreeView_SetItemState(treewnd, TreeView_GetSelection(treewnd), 0, TVIS_SELECTED);
+	TreeView_DeleteAllItems(treewnd);
+	BufferedFileClass file(path);
+	file.Open(1);
+	ChunkLoadClass cload(&file);
+	if (master)
+	{
+		delete master;
+	}
+	master = new ChunkData;
+	ParseSubchunks(cload, master);
+	AddTopLevelItems(master);
+	strncpy(currentFilePath, path, sizeof(currentFilePath) - 1);
+	currentFilePath[sizeof(currentFilePath) - 1] = '\0';
+
+	char title[MAX_PATH + 32];
+	_snprintf(title, sizeof(title), "wdump - %s", currentFilePath);
+	title[sizeof(title) - 1] = '\0';
+	SetWindowTextA(mainwnd, title);
+}
+
+static void ApplySplitter()
+{
+	splitterX = max(50, min(splitterX, mainwidth - 50 - SPLITTER_WIDTH));
+	SetWindowPos(treewnd, nullptr, 0, 0, splitterX, mainheight, SWP_NOMOVE | SWP_NOZORDER);
+	SetWindowPos(listwnd, nullptr, splitterX + SPLITTER_WIDTH, 0, mainwidth - splitterX - SPLITTER_WIDTH, mainheight, SWP_NOZORDER);
+}
+
 LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
@@ -3768,12 +4871,48 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 	case WM_SIZE:
 		if (wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED)
 		{
-			WORD cx = LOWORD(lParam);
-			WORD cy = HIWORD(lParam);
-			mainwidth = cx;
-			mainheight = cy;
-			SetWindowPos(listwnd, nullptr, 300, 0, mainwidth - 300, mainheight, SWP_NOZORDER);
-			SetWindowPos(treewnd, nullptr, 0, 0, 300, mainheight, SWP_NOMOVE | SWP_NOZORDER);
+			mainwidth = LOWORD(lParam);
+			mainheight = HIWORD(lParam);
+			ApplySplitter();
+		}
+		break;
+	case WM_SETCURSOR:
+		if ((HWND)wParam == hWnd)
+		{
+			POINT pt;
+			GetCursorPos(&pt);
+			ScreenToClient(hWnd, &pt);
+			if (pt.x >= splitterX && pt.x < splitterX + SPLITTER_WIDTH)
+			{
+				SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+				return TRUE;
+			}
+		}
+		break;
+	case WM_LBUTTONDOWN:
+		{
+			int x = GET_X_LPARAM(lParam);
+			if (x >= splitterX && x < splitterX + SPLITTER_WIDTH)
+			{
+				splitterDragging = true;
+				SetCapture(hWnd);
+				SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+			}
+		}
+		break;
+	case WM_MOUSEMOVE:
+		if (splitterDragging)
+		{
+			splitterX = GET_X_LPARAM(lParam);
+			ApplySplitter();
+			SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+		}
+		break;
+	case WM_LBUTTONUP:
+		if (splitterDragging)
+		{
+			splitterDragging = false;
+			ReleaseCapture();
 		}
 		break;
 	case WM_COMMAND:
@@ -3785,26 +4924,89 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				fname[0] = 0;
 				if (GetOpenFile(fname, L"W3D Files (*.w3d)\0*.w3d\0WLT Files (*.wlt)\0*.wlt\0WHT Files (*.wht)\0*.wht\0WHA Files (*.wha)\0*.wha\0WTM Files (*.wtm)\0*.wtm\0All Files (*.*)\0*.*\0\0", nullptr, mainwnd, L"Open File"))
 				{
-					TreeView_SetItemState(treewnd, TreeView_GetSelection(treewnd), 0, TVIS_SELECTED);
-					TreeView_DeleteAllItems(treewnd);
-					BufferedFileClass file(fname);
-					file.Open(1);
-					ChunkLoadClass cload(&file);
-					if (master)
-					{
-						delete master;
-					}
-					master = new ChunkData;
-					ParseSubchunks(cload, master);
-					for (int i = 0; i < master->subchunks.Count(); i++)
-					{
-						AddItems(master->subchunks[i], TVI_ROOT);
-					}
+					LoadFile(fname);
 				}
 			}
 			break;
 		case ID_EXIT:
 			SendMessage(mainwnd, WM_CLOSE, 0, 0);
+			break;
+		case ID_DUMP_ANIMATION:
+		case ID_DUMP_ALL:
+			{
+				if (!master)
+				{
+					MessageBox(mainwnd, L"Open a W3D file first.", L"wdump", MB_OK | MB_ICONINFORMATION);
+					break;
+				}
+				bool animationOnly = (LOWORD(wParam) == ID_DUMP_ANIMATION);
+				const wchar_t *title = animationOnly ? L"Save animation dump" : L"Save full dump";
+				char fname[MAX_PATH];
+				StringClass stem = CurrentFileStem();
+				const char *ext = beautifyDump ? "html" : "txt";
+				_snprintf(fname, MAX_PATH, "%s%s.%s", stem.Peek_Buffer(),
+					animationOnly ? "_Ani" : "_FULL", ext);
+				const wchar_t *filter = beautifyDump
+					? L"HTML Files (*.html)\0*.html\0All Files (*.*)\0*.*\0\0"
+					: L"Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
+				if (GetSaveFile(fname, filter, beautifyDump ? L"html" : L"txt", mainwnd, title))
+				{
+					if (!DumpMasterToPath(fname, animationOnly, beautifyDump))
+					{
+						MessageBox(mainwnd, L"Failed to write dump file.", L"wdump", MB_OK | MB_ICONERROR);
+					}
+				}
+			}
+			break;
+		case ID_LIST_SELECTALL:
+			ListView_SetItemState(listwnd, -1, LVIS_SELECTED, LVIS_SELECTED);
+			SetFocus(listwnd);
+			break;
+		case ID_LIST_COPY:
+			CopyListViewToClipboard();
+			break;
+		case ID_DUMP_TEXTURES:
+			{
+				if (!master)
+				{
+					MessageBox(mainwnd, L"Open a W3D file first.", L"wdump", MB_OK | MB_ICONINFORMATION);
+					break;
+				}
+				const ChunkData *meshChunk = FindSelectedMesh();
+				char fname[MAX_PATH];
+				StringClass stem = CurrentFileStem();
+				const char *ext = beautifyDump ? "html" : "txt";
+				if (meshChunk)
+				{
+					const ChunkData *header = FindMeshHeader(meshChunk);
+					const char *meshName = header ? FindInfoValue(header, "MeshName") : nullptr;
+					_snprintf(fname, MAX_PATH, "%s_TEX_%s.%s",
+						stem.Peek_Buffer(),
+						(meshName && *meshName) ? meshName : "mesh", ext);
+				}
+				else
+				{
+					_snprintf(fname, MAX_PATH, "%s_TEX.%s", stem.Peek_Buffer(), ext);
+				}
+				const wchar_t *filter = beautifyDump
+					? L"HTML Files (*.html)\0*.html\0All Files (*.*)\0*.*\0\0"
+					: L"Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
+				const wchar_t *title = meshChunk
+					? L"Save mesh texture dump"
+					: L"Save textures dump (all meshes)";
+				if (GetSaveFile(fname, filter, beautifyDump ? L"html" : L"txt", mainwnd, title))
+				{
+					if (!DumpTexturesToPath(fname, meshChunk, beautifyDump))
+					{
+						MessageBox(mainwnd, L"Failed to write dump file.", L"wdump", MB_OK | MB_ICONERROR);
+					}
+				}
+			}
+			break;
+		case ID_DUMP_BEAUTIFY:
+			beautifyDump = !beautifyDump;
+			CheckMenuItem(menu, ID_DUMP_BEAUTIFY,
+				MF_BYCOMMAND | (beautifyDump ? MF_CHECKED : MF_UNCHECKED));
 			break;
 		default:
 			return FALSE;
@@ -3818,11 +5020,16 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				LPNMTREEVIEW nm = (LPNMTREEVIEW)lParam;
 				ChunkData *cd = (ChunkData *)TreeViewGetItem(treewnd, nm->itemNew.hItem);
 				ListView_DeleteAllItems(listwnd);
+				g_sortCol = -1; g_sortDir = 0; g_cellRow = -1; g_cellCol = -1;
+				ListViewSetSortArrow(-1, 0);
+				if (!cd) return TRUE; // synthetic group node has no chunk payload
 				for (int i = 0; i < cd->subchunks.Count(); i++)
 				{
 					WideStringClass str = cd->subchunks[i]->name;
 					int item = ListViewInsertItem(listwnd, 0xFFFF, str.Peek_Buffer());
 					ListViewSetItemText(listwnd, item, 1, L"chunk");
+					LVITEM li = {}; li.mask = LVIF_PARAM; li.iItem = item; li.lParam = item;
+					ListView_SetItem(listwnd, &li);
 				}
 				for (int i = 0; i < cd->data.Count(); i++)
 				{
@@ -3832,7 +5039,97 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 					ListViewSetItemText(listwnd, item, 1, str.Peek_Buffer());
 					str = cd->data[i]->value;
 					ListViewSetItemText(listwnd, item, 2, str.Peek_Buffer());
+					LVITEM li = {}; li.mask = LVIF_PARAM; li.iItem = item; li.lParam = item;
+					ListView_SetItem(listwnd, &li);
 				}
+				return TRUE;
+			}
+			if (hdr->hwndFrom == listwnd && hdr->code == NM_CLICK)
+			{
+				LVHITTESTINFO hti = {};
+				GetCursorPos(&hti.pt);
+				ScreenToClient(listwnd, &hti.pt);
+				ListView_SubItemHitTest(listwnd, &hti);
+				if (hti.iItem >= 0)
+				{
+					g_cellRow = hti.iItem;
+					g_cellCol = hti.iSubItem;
+				}
+				else
+				{
+					g_cellRow = g_cellCol = -1;
+				}
+				ListView_RedrawItems(listwnd, 0, ListView_GetItemCount(listwnd) - 1);
+				UpdateWindow(listwnd);
+				return TRUE;
+			}
+			if (hdr->hwndFrom == listwnd && hdr->code == NM_CUSTOMDRAW)
+			{
+				LPNMLVCUSTOMDRAW cd = (LPNMLVCUSTOMDRAW)lParam;
+				switch (cd->nmcd.dwDrawStage)
+				{
+				case CDDS_PREPAINT:
+					return CDRF_NOTIFYITEMDRAW;
+				case CDDS_ITEMPREPAINT:
+					// Suppress default selection paint; we draw the active cell ourselves.
+					cd->nmcd.uItemState &= ~(CDIS_SELECTED | CDIS_FOCUS | CDIS_HOT);
+					cd->clrTextBk = GetSysColor(COLOR_WINDOW);
+					cd->clrText   = GetSysColor(COLOR_WINDOWTEXT);
+					if ((int)cd->nmcd.dwItemSpec == g_cellRow)
+						return CDRF_NOTIFYSUBITEMDRAW | CDRF_NEWFONT;
+					return CDRF_NEWFONT;
+				case CDDS_ITEMPREPAINT | CDDS_SUBITEM:
+					if ((int)cd->nmcd.dwItemSpec == g_cellRow && cd->iSubItem == g_cellCol)
+					{
+						if (!g_listTheme)
+							g_listTheme = OpenThemeData(listwnd, L"Explorer::ListView");
+
+						RECT rc = {};
+						// LVIR_BOUNDS on subitem 0 returns the entire row — use LVIR_LABEL there.
+						ListView_GetSubItemRect(listwnd, g_cellRow, g_cellCol,
+							g_cellCol == 0 ? LVIR_LABEL : LVIR_BOUNDS, &rc);
+
+						int stateId = (GetFocus() == listwnd) ? LISS_SELECTED : LISS_SELECTEDNOTFOCUS;
+
+						if (g_listTheme)
+							DrawThemeBackground(g_listTheme, cd->nmcd.hdc,
+								LVP_LISTITEM, stateId, &rc, nullptr);
+						else
+							FillRect(cd->nmcd.hdc, &rc, GetSysColorBrush(COLOR_HIGHLIGHT));
+
+						wchar_t text[1024] = {};
+						ListView_GetItemText(listwnd, g_cellRow, g_cellCol, text, 1024);
+						RECT rcText = rc;
+						rcText.left  += 4;
+						rcText.right -= 4;
+						int      oldBk  = SetBkMode(cd->nmcd.hdc, TRANSPARENT);
+						COLORREF oldClr = SetTextColor(cd->nmcd.hdc, GetSysColor(COLOR_WINDOWTEXT));
+						DrawText(cd->nmcd.hdc, text, -1, &rcText,
+							DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
+						SetTextColor(cd->nmcd.hdc, oldClr);
+						SetBkMode(cd->nmcd.hdc, oldBk);
+						return CDRF_SKIPDEFAULT;
+					}
+					return CDRF_DODEFAULT;
+				}
+				return CDRF_DODEFAULT;
+			}
+			if (hdr->hwndFrom == listwnd && hdr->code == LVN_COLUMNCLICK)
+			{
+				LPNMLISTVIEW nmlv = (LPNMLISTVIEW)lParam;
+				int col = nmlv->iSubItem;
+				if (g_sortCol == col)
+				{
+					if      (g_sortDir ==  1) g_sortDir = -1;
+					else if (g_sortDir == -1) { g_sortDir = 0; g_sortCol = -1; }
+					else                       g_sortDir =  1;
+				}
+				else
+				{
+					g_sortCol = col;
+					g_sortDir = 1;
+				}
+				ListViewApplySort();
 				return TRUE;
 			}
 			if (hdr->hwndFrom == treewnd && hdr->code == TVN_DELETEITEM)
@@ -3847,7 +5144,38 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			}
 	}
 		break;
+	case WM_CONTEXTMENU:
+		if ((HWND)wParam == listwnd)
+		{
+			HMENU ctx = CreatePopupMenu();
+			AppendMenu(ctx, MF_STRING, ID_LIST_SELECTALL, L"Select All\tCtrl+A");
+			AppendMenu(ctx, MF_STRING, ID_LIST_COPY,      L"Copy\tCtrl+C");
+			int sel = ListView_GetNextItem(listwnd, -1, LVNI_SELECTED);
+			if (sel < 0 && g_cellRow < 0) EnableMenuItem(ctx, ID_LIST_COPY, MF_BYCOMMAND | MF_GRAYED);
+			TrackPopupMenu(ctx, TPM_RIGHTBUTTON,
+				GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), 0, mainwnd, nullptr);
+			DestroyMenu(ctx);
+			return 0;
+		}
+		break;
+	case WM_DROPFILES:
+		{
+			HDROP hDrop = (HDROP)wParam;
+			wchar_t wpath[MAX_PATH] = L"";
+			if (DragQueryFileW(hDrop, 0, wpath, MAX_PATH))
+			{
+				char path[MAX_PATH];
+				_snprintf(path, MAX_PATH, "%ls", wpath);
+				LoadFile(path);
+			}
+			DragFinish(hDrop);
+		}
+		return 0;
+	case WM_THEMECHANGED:
+		if (g_listTheme) { CloseThemeData(g_listTheme); g_listTheme = nullptr; }
+		return 0;
 	case WM_CLOSE:
+		if (g_listTheme) { CloseThemeData(g_listTheme); g_listTheme = nullptr; }
 		PostQuitMessage(0);
 		return 0;
 	}
@@ -3872,7 +5200,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		uf += ".unk";
 		FILE *out = fopen(of, "wt");
 		FILE *unknown = fopen(uf, "wt");
-		DumpData(out, unknown, master, "");
+		DumpData(out, unknown, master, "", false);
 		fclose(unknown);
 		fclose(out);
 		HANDLE h = CreateFileA(uf, GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -3885,9 +5213,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		delete master;
 		return 0;
 	}
+	CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 	INITCOMMONCONTROLSEX ex;
 	ex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-	ex.dwICC = ICC_WIN95_CLASSES;
+	ex.dwICC = ICC_WIN95_CLASSES | ICC_TREEVIEW_CLASSES | ICC_LISTVIEW_CLASSES;
 	InitCommonControlsEx(&ex);
 	WNDCLASSEXW wcls = {};
 	wcls.lpszClassName = CLASS_NAME;
@@ -3908,12 +5237,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	AdjustWindowRect(&window_rect, window_style, false);
 
 	menu = LoadMenu(hInstance, MAKEINTRESOURCE(IDR_MAINMENU));
+	CheckMenuItem(menu, ID_DUMP_BEAUTIFY, MF_BYCOMMAND | MF_CHECKED);
 	mainwidth = window_rect.right - window_rect.left;
 	mainheight = window_rect.bottom - window_rect.top;
 
 	mainwnd = CreateWindowEx(0, CLASS_NAME, WND_TITLE, window_style, CW_USEDEFAULT, CW_USEDEFAULT, mainwidth, mainheight, nullptr, menu, hInstance, nullptr);
-	treewnd = CreateWindow(WC_TREEVIEW, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS, 0, 0, 300, mainheight, mainwnd, (HMENU)101, hInstance, nullptr);
-	listwnd = CreateWindow(WC_LISTVIEW, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT, 300, 0, mainwidth - 300, mainheight, mainwnd, (HMENU)101, hInstance, nullptr);
+	DragAcceptFiles(mainwnd, TRUE);
+	treewnd = CreateWindow(WC_TREEVIEW, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS, 0, 0, splitterX, mainheight, mainwnd, (HMENU)101, hInstance, nullptr);
+	listwnd = CreateWindow(WC_LISTVIEW, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT, splitterX + SPLITTER_WIDTH, 0, mainwidth - splitterX - SPLITTER_WIDTH, mainheight, mainwnd, (HMENU)101, hInstance, nullptr);
+	// Modern explorer theme + double-buffered drawing on tree/list (matches W3DView).
+	SetWindowTheme(treewnd, L"Explorer", nullptr);
+	SetWindowTheme(listwnd, L"Explorer", nullptr);
+	SetWindowTheme(ListView_GetHeader(listwnd), L"Explorer", nullptr);
+	TreeView_SetExtendedStyle(treewnd, TVS_EX_DOUBLEBUFFER | TVS_EX_FADEINOUTEXPANDOS,
+		TVS_EX_DOUBLEBUFFER | TVS_EX_FADEINOUTEXPANDOS);
+	ListView_SetExtendedListViewStyle(listwnd,
+		LVS_EX_DOUBLEBUFFER | LVS_EX_HEADERDRAGDROP);
 	ListViewInsertColumn(listwnd, 0, L"Name", 230);
 	ListViewInsertColumn(listwnd, 1, L"Type", 70);
 	ListViewInsertColumn(listwnd, 2, L"Value", 0xFFFF);
@@ -3934,5 +5273,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	{
 		delete master;
 	}
+	CoUninitialize();
 	return 0;
 }
