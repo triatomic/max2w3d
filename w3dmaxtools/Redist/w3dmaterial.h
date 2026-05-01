@@ -340,7 +340,7 @@ namespace W3D::MaxTools
 		virtual float    EvalDisplacement(ShadeContext& sc);
 
 		// SubTexmap access methods
-		virtual int     NumSubTexmaps() { return static_cast<int>(m_Passes.size() * 2); }
+		virtual int     NumSubTexmaps() { return NumActivePasses() * 2; }
 		virtual Texmap* GetSubTexmap(int i);
 		virtual void    SetSubTexmap(int i, Texmap *m);
 		virtual TSTR    GetSubTexmapSlotName(int i, bool localized);
@@ -360,7 +360,7 @@ namespace W3D::MaxTools
 		virtual RefTargetHandle Clone(RemapDir &remap);
 		virtual RefResult NotifyRefChanged(const Interval& changeInt, RefTargetHandle hTarget, PartID& partID, RefMessage message, BOOL propagate);
 
-		virtual int NumSubs() { return 0; }
+		virtual int NumSubs() { return NumSubTexmaps(); }
 		virtual Animatable* SubAnim(int i);
 		virtual TSTR SubAnimName(int i, bool localized);
 

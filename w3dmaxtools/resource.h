@@ -88,25 +88,6 @@
 #define IDD_W3D_EXPORT_SIMPLE_MESH      166
 #define IDS_PRIMARY_GRADIENT            167
 #define IDD_W3D_EXPORT_LOG              167
-
-// WWSkin (Westwood skinning) — modifier-panel rollouts.
-#define IDD_WWSKIN_SKELETON             168
-#define IDD_WWSKIN_BONE_INFLUENCE       169
-
-#define IDS_WWSKIN_SKELETON             250
-#define IDS_WWSKIN_BONE_INFLUENCE       251
-
-#define IDC_WWSKIN_BONE_LIST            1200
-#define IDC_WWSKIN_ADD_BONES            1201
-#define IDC_WWSKIN_REMOVE_BONES         1202
-#define IDC_WWSKIN_PICK_BY_NAME         1203
-#define IDC_WWSKIN_BASE_POSE_EDIT       1204
-#define IDC_WWSKIN_BASE_POSE_SPIN       1205
-#define IDC_WWSKIN_LINK                 1206
-#define IDC_WWSKIN_LINK_BY_NAME         1207
-#define IDC_WWSKIN_AUTO_LINK            1208
-#define IDC_WWSKIN_UNLINK               1209
-#define IDC_WWSKIN_CLASSIC_MODE         1210
 #define IDS_SECONDARY_GRADIENT          168
 #define IDS_DEPTH_COMPARISON            169
 #define IDS_DETAIL_COLOUR               170
@@ -288,8 +269,28 @@
 #define IDC_SELECT_MAX_BONES            1152
 #define IDC_LOG                         1198
 
+// WWSkin Phase 6 — modifier-panel rollouts (the WSM Object's Skeleton dialog
+// and the Binding Modifier's Bone Influence dialog).
+#define IDD_WWSKIN_SKELETON             168
+#define IDD_WWSKIN_BONE_INFLUENCE       169
+
+#define IDS_WWSKIN_SKELETON             250
+#define IDS_WWSKIN_BONE_INFLUENCE       251
+
+#define IDC_WWSKIN_BONE_LIST            1200
+#define IDC_WWSKIN_ADD_BONES            1201
+#define IDC_WWSKIN_REMOVE_BONES         1202
+#define IDC_WWSKIN_PICK_BY_NAME         1203
+#define IDC_WWSKIN_BASE_POSE_EDIT       1204
+#define IDC_WWSKIN_BASE_POSE_SPIN       1205
+#define IDC_WWSKIN_LINK                 1206
+#define IDC_WWSKIN_LINK_BY_NAME         1207
+#define IDC_WWSKIN_AUTO_LINK            1208
+#define IDC_WWSKIN_UNLINK               1209
+#define IDC_WWSKIN_CLASSIC_MODE         1210
+
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        170

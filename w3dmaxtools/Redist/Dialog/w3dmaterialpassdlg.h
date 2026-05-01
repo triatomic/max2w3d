@@ -16,6 +16,7 @@ namespace W3D::MaxTools
 		W3DMaterialPassDlgProc();
 
 		void ClearDisplayFlags() { static_cast<TexturesTab*>(m_Tabs[2].get())->ClearDisplayFlags(); }
+		void RefreshStageUI(int stageIdx);
 	private:
 		void SetTabIndex(const int index);
 
@@ -104,6 +105,7 @@ namespace W3D::MaxTools
 			void SetStage0Enabled(bool enabled);
 			void SetStage1Enabled(bool enabled);
 			void ClearDisplayFlags();
+			void RefreshStageUI(int stageIdx);
 
 			static BOOL CALLBACK DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam);
 

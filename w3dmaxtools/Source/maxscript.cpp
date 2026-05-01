@@ -1,5 +1,7 @@
 #include <stdmat.h>
 #include <iInstanceMgr.h>
+#include <triobj.h>
+#include <meshnormalspec.h>
 #include <maxscript\maxscript.h>
 #include <maxscript\maxwrapper\mxsobjects.h>
 #include <maxscript\maxwrapper\mxsmaterial.h>
@@ -3269,4 +3271,43 @@ Value* wwSetBoneWeight_cf(Value** arg_list, int count)
 	inf.BoneIdx   [slot - 1] = boneIdx;
 	inf.BoneWeight[slot - 1] = weight;
 	return &ok;
+}
+
+// Promote every normal in a node's MeshNormalSpec to Explicit so Max 2023's
+// Nitrous viewport stops re-deriving them from smoothing groups. The W3D
+// importer's per-vertex setNormal loop writes the values; this helper just
+// flips the Explicit bit. Replaces the importer's deferred Edit_Normals
+// MakeExplicit pass — writes the base mesh directly so no modifier is left
+// on the stack and no Skin/topology conflict can occur, which means it can
+// run inline right after setNormal instead of after binding.
+def_visible_primitive(wwMakeNormalsExplicit, "wwMakeNormalsExplicit");
+Value *wwMakeNormalsExplicit_cf(Value **arg_list, int count)
+{
+	check_arg_count(wwMakeNormalsExplicit, 1, count);
+	INode* node = arg_list[0]->to_node();
+	if (!node) return &false_value;
+
+	Object* obj = node->GetObjectRef();
+	while (obj && obj->SuperClassID() == GEN_DERIVOB_CLASS_ID)
+	{
+		obj = ((IDerivedObject*)obj)->GetObjRef();
+	}
+	if (!obj || !obj->IsSubClassOf(triObjectClassID)) return &false_value;
+
+	TriObject* tri = static_cast<TriObject*>(obj);
+	Mesh& mesh = tri->GetMesh();
+
+	mesh.SpecifyNormals();
+	MeshNormalSpec* spec = mesh.GetSpecifiedNormals();
+	if (!spec) return &false_value;
+
+	spec->CheckNormals();
+	const int n = spec->GetNumNormals();
+	for (int i = 0; i < n; ++i)
+	{
+		spec->SetNormalExplicit(i, true);
+	}
+
+	node->NotifyDependents(FOREVER, PART_GEOM, REFMSG_CHANGE);
+	return &true_value;
 }

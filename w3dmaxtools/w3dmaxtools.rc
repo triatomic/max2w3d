@@ -907,7 +907,7 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// WWSkin (Westwood skinning) — modifier panel rollouts
+// WWSkin (Westwood skinning) — Phase 6 modifier panel rollouts
 //
 // Visual style mirrors the existing W3DMaterial dialogs: Max custom controls
 // (CustEdit/SpinnerControl/CustButton) so DPI scaling and Max 2023 dark mode
