@@ -1,42 +1,79 @@
-# max2w3d / W3D Tools Source Build Instructions
+# max2w3d / W3D Tools
 
-The source code to `max2w3x.dle`, `max2w3d.dle`, `wdump.exe` and `memorymanager.dll` is included with this package.
+Source code for:
 
-## Requirements
+- `max2w3x.dle`
+- `max2w3d.dle`
+- `wdump.exe`
+- `memorymanager.dll`
 
-To compile this project out-of-the-box, you will need:
+These tools provide W3D export and utility functionality for 3ds Max 2023.
 
-- Microsoft Visual Studio 2022  
-  - Community Edition works fine  
-  - Latest patch is recommended  
+---
 
-- 3D Studio Max 2023 SDK  
+## Installation
 
-- Microsoft DirectX SDK  
+1. Download both files from the latest release.
+
+2. Place them in your 3ds Max 2023 plugins folder  
+   (usually located at):
+
+```text
+C:\Program Files\Autodesk\3ds Max 2023\Plugins\
+```
+
+---
+
+## Getting the Source
+
+Clone the latest branch:
+
+```bash
+git clone --branch wwskin-bundle-WWSkinExporterFixW3DSettUIfix https://github.com/triatomic/max2w3d.git
+```
+
+Enter the project folder:
+
+```bash
+cd max2w3d
+```
+
+---
+
+## Building from Source
+
+### Requirements
+
+- Visual Studio 2022  
+  - Community Edition supported
+  - Latest updates recommended
+
+- 3ds Max 2023 SDK
+- Microsoft DirectX SDK (June 2010)
+
+---
 
 ## DirectX SDK Setup
 
-Download and install the Microsoft DirectX SDK:
+Download the DirectX SDK:
 
 https://www.microsoft.com/en-au/download/details.aspx?id=6812
 
-After installation:
+### Headers
 
-### Copy Header Files
-
-Go to the DirectX SDK install folder:
+Copy the following files from:
 
 ```text
 <DirectX SDK>\Include
 ```
 
-Copy the following files into:
+to:
 
 ```text
 dep\dxsdk_june10\include
 ```
 
-Files to copy:
+Required files:
 
 - `d3dx9.h`
 - `d3dx9anim.h`
@@ -50,33 +87,29 @@ Files to copy:
 - `d3dx9tex.h`
 - `d3dx9xof.h`
 
-> Do **not** copy any other files.
+> Copy only these files.
 
-### Copy Library File
-
-Go to:
-
-```text
-<DirectX SDK>\Lib\x64
-```
+### Library
 
 Copy:
 
-- `d3dx9.lib`
+```text
+<DirectX SDK>\Lib\x64\d3dx9.lib
+```
 
-into:
+to:
 
 ```text
 dep\dxsdk_june10\lib\x64
 ```
 
-> Copy **only** `d3dx9.lib`.
+> Copy only `d3dx9.lib`.
 
 ---
 
-## 3D Studio Max SDK Setup
+## 3ds Max SDK Setup
 
-Copy the following folders from the 3D Studio Max 2023 SDK:
+Copy the following folders from the 3ds Max 2023 SDK:
 
 - `include`
 - `lib`
@@ -87,69 +120,58 @@ into:
 dep\maxsdk
 ```
 
-in the source tree.
+inside the source tree.
 
 ---
 
-## Build Instructions
+## Compiling
 
-Open the solution:
+Open:
 
 ```text
 tt.sln
 ```
 
-and compile using **Visual Studio 2022**.
+Build using **Visual Studio 2022**.
 
-If you are unable to get it to compile, contact:
+---
 
-- **jonwil** on the W3D Hub forums  
-- **Jonathan Wilson** on the W3D Hub Discord  
+## Support
+
+If you encounter build issues:
+
+- **jonwil** on W3D Hub forums
+- **Jonathan Wilson** on W3D Hub Discord
 
 ---
 
 ## License
 
-This code is licensed under the **GNU GPL v3.0** as described in:
+Licensed under **GNU GPL v3.0**.
+
+See:
 
 ```text
 gpl-3.0.txt
 ```
 
-### Additional Linking Exemption
+### Linking Exemption
 
-In addition to GNU GPL v3.0, you are granted a specific exemption allowing linking of the source code for `max2w3d.dle` with binaries from any 3D program (including 3rd-party plugins), provided that:
-
-- the source code to your modified version of `max2w3d.dle`
-- or any plugin including code from `max2w3d.dle`
-
-is released in accordance with **GNU GPL v3.0**.
+A specific exemption is granted allowing linking of `max2w3d.dle`
+with binaries from any 3D application or third-party plugins, provided
+that any modified version of `max2w3d.dle` or derivative plugin
+containing code from this project is distributed under GPL v3.0.
 
 ---
 
-## Building Latest Source
+## Disclaimer
 
-Clone the repository:
+This is an unofficial community project based on reverse-engineered W3D tools.
 
-```bash
-git clone -b wwskin-bundle-WWSkinExporterFix https://github.com/triatomic/max2w3d
-```
+Portions of this project include code released by Electronic Arts Inc.
+under GNU GPL v3.0 relating to WWSkin bone mesh functionality.
 
-Then compile using **Visual Studio 2022** and follow the setup steps above.
+This project is not affiliated with, endorsed by, or sponsored by
+Electronic Arts Inc.
 
-## ⚖️ LEGAL DISCLAIMER & COPYRIGHT NOTICE
-
-**Nature of the Project**
-This project is a community-driven, derivative modification of independently reverse-engineered W3D Tools. It is provided strictly for non-commercial, educational, and community modding purposes.
-
-**Incorporation of Open-Source Code**
-Portions of this software incorporate source code officially released by Electronic Arts Inc. under the GNU General Public License Version 3 (GPLv3). Specifically, this pertains to verbatim vertex/face data and implementation logic regarding the WWSkin bone meshes.
-
-**Intellectual Property Acknowledgment**
-All rights, title, and interest regarding the W3D file format, original proprietary source code, and associated proprietary assets remain the exclusive property of Electronic Arts Inc. "Command & Conquer", "C&C", "Generals", "Zero Hour", and related logos are registered trademarks of Electronic Arts Inc.
-
-**Non-Affiliation**
-This project is an unofficial community tool. It is not affiliated with, authorized by, endorsed by, or sponsored by Electronic Arts Inc. or any of its subsidiaries.
-
-**No Warranty (As-Is Clause)**
-THIS SOFTWARE IS PROVIDED BY THE CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
