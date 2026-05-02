@@ -55,25 +55,10 @@ cd max2w3d
 
 ## DirectX SDK Setup
 
-Download the DirectX SDK:
-
+Download and install the DirectX SDK:  
 https://www.microsoft.com/en-au/download/details.aspx?id=6812
 
-### Headers
-
-Copy the following files from:
-
-```text
-<DirectX SDK>\Include
-```
-
-to:
-
-```text
-dep\dxsdk_june10\include
-```
-
-Required files:
+Copy these files from `<DirectX SDK>\Include` to `dep\dxsdk_june10\include`:
 
 - `d3dx9.h`
 - `d3dx9anim.h`
@@ -87,39 +72,11 @@ Required files:
 - `d3dx9tex.h`
 - `d3dx9xof.h`
 
-> Copy only these files.
-
-### Library
-
-Copy:
-
-```text
-<DirectX SDK>\Lib\x64\d3dx9.lib
-```
-
-to:
-
-```text
-dep\dxsdk_june10\lib\x64
-```
-
-> Copy only `d3dx9.lib`.
-
----
+Copy `<DirectX SDK>\Lib\x64\d3dx9.lib` to `dep\dxsdk_june10\lib\x64`.
 
 ## 3ds Max SDK Setup
 
-Copy the following folders from the 3ds Max 2023 SDK:
-
-- `include`
-- `lib`
-
-into:
-
-```text
-dep\maxsdk
-```
-
+Copy `include` and `lib` from the 3ds Max 2023 SDK to `dep\maxsdk`.
 inside the source tree.
 
 ---
