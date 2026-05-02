@@ -45,13 +45,19 @@ namespace W3D::MaxTools
 	{
 		INode* node = vpt->GetClosestHit();
 		if (node && User)
-		{
 			User->User_Picked_Bone(node);
-		}
-		// One-shot: clear the User reference so a stale picker can't fire twice.
-		User = nullptr;
+		// Return FALSE to keep the pick mode alive so the user can click multiple
+		// bones without re-arming. Max calls ExitMode when the mode actually ends
+		// (right-click / escape), and that is where User/BoneList are cleared.
+		return FALSE;
+	}
+
+	void BonePickerClass::ExitMode(IObjParam* /*ip*/)
+	{
+		if (User)
+			User->User_Exited_Pick_Mode();
+		User     = nullptr;
 		BoneList = nullptr;
-		return TRUE;
 	}
 
 	int BonePickerClass::filter(INode* inode)

@@ -16,6 +16,9 @@
 #include <triobj.h>
 #include <iparamb2.h>
 #include <custcont.h>
+#include <MeshNormalSpec.h>	// MeshNormalSpec / MeshNormalFace / MESH_NORMAL_MODIFIER_SUPPORT
+                                // — only forward-declared by <max.h>, so the full header is
+                                // required for the per-frame normal-skinning loop in ModifyObject.
 
 extern HINSTANCE hInstance;
 
@@ -29,6 +32,7 @@ namespace W3D::MaxTools
 	{
 		VertSel = mesh->vertSel;
 		VertData.SetCount(mesh->getNumVerts());
+		Capture_Base_Normals(mesh);
 		Valid = TRUE;
 	}
 
@@ -37,16 +41,66 @@ namespace W3D::MaxTools
 		if (Valid) return;
 		VertSel.SetSize(mesh->vertSel.GetSize(), 1);
 		VertData.SetCount(mesh->getNumVerts());
+		Capture_Base_Normals(mesh);
 		Valid = TRUE;
+	}
+
+	void SkinDataClass::Capture_Base_Normals(Mesh* mesh)
+	{
+		BaseNormals.ZeroCount();
+		NormalToVert.ZeroCount();
+
+		if (!mesh) return;
+		MeshNormalSpec* spec = mesh->GetSpecifiedNormals();
+		if (!spec) return;
+
+		const int numNormals = spec->GetNumNormals();
+		if (numNormals <= 0) return;
+
+		// Bail if no Explicit entries — ModifyObject only re-skins Explicit normals,
+		// so capturing the auto-derived ones would just waste memory.
+		bool anyExplicit = false;
+		for (int i = 0; i < numNormals; ++i)
+		{
+			if (spec->GetNormalExplicit(i)) { anyExplicit = true; break; }
+		}
+		if (!anyExplicit) return;
+
+		BaseNormals.SetCount(numNormals);
+		NormalToVert.SetCount(numNormals);
+		for (int i = 0; i < numNormals; ++i)
+		{
+			BaseNormals[i] = spec->Normal(i);
+			NormalToVert[i] = -1;
+		}
+
+		// Walk faces×corners to associate each normal slot with the vert that drives
+		// it. Multiple corners may share a normal index — they always belong to the
+		// same vertex (CheckNormals splits per smoothing-group), so the last write
+		// is consistent with all earlier writes.
+		const int numFaces = spec->GetNumFaces();
+		for (int f = 0; f < numFaces; ++f)
+		{
+			MeshNormalFace& nf = spec->Face(f);
+			Face& mf = mesh->faces[f];
+			for (int c = 0; c < 3; ++c)
+			{
+				const int nid = nf.GetNormalID(c);
+				if (nid < 0 || nid >= numNormals) continue;
+				NormalToVert[nid] = (int)mf.v[c];
+			}
+		}
 	}
 
 	LocalModData* SkinDataClass::Clone()
 	{
 		auto* nd = new SkinDataClass();
-		nd->VertSel  = VertSel;
-		nd->VertData = VertData;
-		nd->Valid    = Valid;
-		nd->Held     = Held;
+		nd->VertSel      = VertSel;
+		nd->VertData     = VertData;
+		nd->BaseNormals  = BaseNormals;
+		nd->NormalToVert = NormalToVert;
+		nd->Valid        = Valid;
+		nd->Held         = Held;
 		return nd;
 	}
 
@@ -365,6 +419,15 @@ namespace W3D::MaxTools
 	{
 		SimpleWSMObject::BeginEditParams(ip, flags, prev);
 		InterfacePtr = ip;
+
+		// The Skeleton rollout belongs in the Modify panel only. During interactive
+		// creation (BEGIN_EDIT_CREATE) the user just clicks to place the gizmo — no
+		// bone management needed yet. Showing the rollout in Create mode causes it to
+		// appear in the shared Create-panel rollup window, which is not scoped to any
+		// object type and therefore leaks into Helpers, Cameras, etc.
+		if (flags & BEGIN_EDIT_CREATE)
+			return;
+
 		if (!SkeletonHWND)
 		{
 			SkeletonHWND = ip->AddRollupPage(
@@ -593,19 +656,24 @@ namespace W3D::MaxTools
 
 	void SkinWSMObjectClass::User_Picked_Bone(INode* node)
 	{
-		// Phase 3 wires the picker UI to call this. The dispatch on selection mode
-		// mirrors EA's flow. Repaint the bone listbox so the user sees the change
-		// immediately — without this the rollout's listbox stayed empty/stale until
-		// the WSM was re-selected, since neither Max nor the param block fires a
-		// notification path that hits the custom Skeleton dialog.
+		// Dispatch on the current mode. BoneSelectionMode is NOT reset here because
+		// the viewport pick mode stays alive across multiple clicks (Pick() returns
+		// FALSE). User_Exited_Pick_Mode() resets mode and button state when the user
+		// right-clicks or escapes out of the pick mode.
 		switch (BoneSelectionMode)
 		{
 			case BONE_SEL_MODE_ADD:    Add_Bone(node);    break;
 			case BONE_SEL_MODE_REMOVE: Remove_Bone(node); break;
 			default: break;
 		}
-		Set_Bone_Selection_Mode(BONE_SEL_MODE_NONE);
 		UpdateBoneList(this);
+	}
+
+	void SkinWSMObjectClass::User_Exited_Pick_Mode()
+	{
+		Set_Bone_Selection_Mode(BONE_SEL_MODE_NONE);
+		if (AddBonesButton)    AddBonesButton->SetCheck(FALSE);
+		if (RemoveBonesButton) RemoveBonesButton->SetCheck(FALSE);
 	}
 
 	void SkinWSMObjectClass::User_Picked_Bones(INodeTab& nodetab)
@@ -865,6 +933,64 @@ namespace W3D::MaxTools
 
 		triobj->PointsWereChanged();
 		triobj->UpdateValidity(GEOM_CHAN_NUM, Get_Validity(t));
+
+		// Re-skin Explicit base-mesh normals so they follow the bones. Without this,
+		// "Use 3dsMax8 Normals" + WWSkin leaves the normals frozen in bind pose and
+		// shading goes wrong as soon as the rig animates. Only runs when the user has
+		// actually marked normals Explicit (Capture_Base_Normals returns empty arrays
+		// otherwise), so non-Max8-Normals workflows pay no cost.
+		MeshNormalSpec* spec = triobj->mesh.GetSpecifiedNormals();
+		if (spec)
+		{
+			// MESH_NORMAL_MODIFIER_SUPPORT must be set for any modifier that alters
+			// PART_GEOM/PART_TOPO of a TriObject, otherwise Max clears all Specified/
+			// Explicit normals after our evaluation. We do alter PART_GEOM (SetPoint +
+			// PointsWereChanged above), so we have to opt in here regardless of whether
+			// the per-frame re-skin loop below runs — even just preserving normals
+			// untouched is enough reason to set this flag.
+			spec->SetFlag(MESH_NORMAL_MODIFIER_SUPPORT);
+
+			if (skindata->BaseNormals.Count() > 0
+			    && spec->GetNumNormals() == skindata->BaseNormals.Count())
+			{
+				const int numBones = WSMObjectRef->Num_Bones();
+				Tab<Matrix3> boneDelta;   // Inverse(baseTM) * curTM, per bone
+				Tab<bool>    boneValid;
+				boneDelta.SetCount(numBones);
+				boneValid.SetCount(numBones);
+				for (int b = 0; b < numBones; ++b)
+				{
+					boneValid[b] = false;
+					INode* bn = WSMObjectRef->Get_Bone(b);
+					if (!bn) continue;
+					const Matrix3 baseTM = bn->GetObjectTM(basetime);
+					const Matrix3 curTM  = bn->GetObjectTM(t);
+					boneDelta[b] = Inverse(baseTM) * curTM;
+					boneValid[b] = true;
+				}
+
+				const int numNormals = spec->GetNumNormals();
+				for (int n = 0; n < numNormals; ++n)
+				{
+					if (!spec->GetNormalExplicit(n)) continue;
+					const int vertIdx = skindata->NormalToVert[n];
+					if (vertIdx < 0 || vertIdx >= skindata->VertData.Count()) continue;
+					const int boneidx = skindata->VertData[vertIdx].BoneIdx[0];
+					if (boneidx < 0 || boneidx >= numBones || !boneValid[boneidx]) continue;
+
+					// Mirror the position pipeline: mesh-local -> world -> bone-delta -> mesh-local.
+					// VectorTransform applies rotation only (drops the translation row), which is
+					// what we want for direction vectors.
+					Point3 nrm = skindata->BaseNormals[n];
+					nrm = VectorTransform(worldTM,            nrm);
+					nrm = VectorTransform(boneDelta[boneidx], nrm);
+					nrm = VectorTransform(invWorld,           nrm);
+					spec->Normal(n) = Normalize(nrm);
+				}
+
+				triobj->mesh.InvalidateGeomCache();
+			}
+		}
 	}
 
 	// --- Sub-object selection (the bulk of HitTest/SelectSubComponent/Clear/Select/
@@ -1283,6 +1409,7 @@ namespace W3D::MaxTools
 							obj->Set_Bone_Selection_Mode(SkinWSMObjectClass::BONE_SEL_MODE_ADD_MANY);
 							TheBonePicker.Set_User(obj, FALSE);
 							if (obj->InterfacePtr) obj->InterfacePtr->DoHitByNameDialog(&TheBonePicker);
+							if (obj->AddBonesButton) obj->AddBonesButton->SetCheck(FALSE);
 							UpdateBoneList(obj);
 						}
 						return TRUE;
@@ -1311,17 +1438,14 @@ namespace W3D::MaxTools
 							if (obj->InterfacePtr) obj->InterfacePtr->SetPickMode(&TheBonePicker);
 							return TRUE;
 						}
-						// Modern: only operate on the listbox selection. Do nothing
-						// silently if nothing is selected (no held viewport state).
-						const LRESULT sel = SendMessage(obj->BoneListHWND, LB_GETCURSEL, 0, 0);
-						if (sel == LB_ERR) return TRUE;
-						const int boneIdx = BoneTabIndexFromListIndex(obj, (int)sel);
-						if (boneIdx >= 0 && boneIdx < obj->BoneTab.Count())
-						{
-							INode* bone = obj->BoneTab[boneIdx];
-							if (bone) obj->Remove_Bone(bone);
-							UpdateBoneList(obj);
-						}
+						// Modern: open the Select-By-Name dialog filtered to the
+						// bones already in the list so the user can multi-select
+						// which ones to remove, mirroring native Skin's "Remove Bones".
+						obj->Set_Bone_Selection_Mode(SkinWSMObjectClass::BONE_SEL_MODE_REMOVE_MANY);
+						TheBonePicker.Set_User(obj, FALSE, &obj->BoneTab);
+						if (obj->InterfacePtr) obj->InterfacePtr->DoHitByNameDialog(&TheBonePicker);
+						if (obj->RemoveBonesButton) obj->RemoveBonesButton->SetCheck(FALSE);
+						UpdateBoneList(obj);
 						return TRUE;
 					}
 					case IDC_WWSKIN_PICK_BY_NAME:

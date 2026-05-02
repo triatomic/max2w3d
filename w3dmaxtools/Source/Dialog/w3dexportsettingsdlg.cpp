@@ -123,6 +123,14 @@ namespace
 
 namespace W3D::MaxTools
 {
+	// Static floater state — persists across W3DUtilities activations.
+	HWND             W3DExportSettingsDlg::s_FloaterHWND                = nullptr;
+	HWND             W3DExportSettingsDlg::s_FloaterDazzleType          = nullptr;
+	HWND             W3DExportSettingsDlg::s_FloaterSelectEdit          = nullptr;
+	ISpinnerControl* W3DExportSettingsDlg::s_FloaterStaticSortingSpinner = nullptr;
+	ISpinnerControl* W3DExportSettingsDlg::s_FloaterScreenSizeSpinner   = nullptr;
+	W3DExportSettingsDlg* W3DExportSettingsDlg::s_ActiveInstance        = nullptr;
+
 	float GetScreenSizeFromNode(INode* node)
 	{
 #ifdef _DEBUG
@@ -165,7 +173,15 @@ namespace W3D::MaxTools
 		  , m_SelectionEdit(nullptr)
 		  , m_StaticSortingSpinner(nullptr)
 		  , m_ScreenSizeSpinner(nullptr)
+		  , m_CommandSource(nullptr)
 	{
+		s_ActiveInstance = this;
+		// If the floater survived the previous deactivation, refresh it immediately
+		// so it reflects the current selection in the new utility session.
+		if (s_FloaterHWND)
+			RefreshDialogUI(s_FloaterHWND, s_FloaterSelectEdit,
+			                s_FloaterStaticSortingSpinner, s_FloaterScreenSizeSpinner,
+			                s_FloaterDazzleType);
 	}
 
 	void W3DExportSettingsDlg::Initialise(Interface * ip)
@@ -203,10 +219,43 @@ namespace W3D::MaxTools
 		ReleaseISpinner(m_ScreenSizeSpinner);
 	}
 
+	W3DExportSettingsDlg::~W3DExportSettingsDlg()
+	{
+		if (s_ActiveInstance == this)
+			s_ActiveInstance = nullptr;
+		// The floater window is static-lifetime — don't destroy it here.
+		// CloseFloater() is only called when Max itself shuts down (plugin unload).
+	}
+
 	void W3DExportSettingsDlg::Close(Interface* ip)
 	{
 		if (m_RollupRoot)
 			ip->DeleteRollupPage(m_RollupRoot);
+	}
+
+	void W3DExportSettingsDlg::OpenFloater()
+	{
+		if (s_FloaterHWND)
+		{
+			SetForegroundWindow(s_FloaterHWND);
+			return;
+		}
+		// s_FloaterHWND is set inside WM_INITDIALOG of FloaterDlgProc.
+		CreateDialogParam(
+			hInstance,
+			MAKEINTRESOURCE(IDD_W3D_UTIL_SETTINGS_FLOATER),
+			GetCOREInterface()->GetMAXHWnd(),
+			FloaterDlgProc,
+			reinterpret_cast<LPARAM>(this));
+		if (s_FloaterHWND)
+			ShowWindow(s_FloaterHWND, SW_SHOW);
+	}
+
+	void W3DExportSettingsDlg::CloseFloater()
+	{
+		if (s_FloaterHWND)
+			DestroyWindow(s_FloaterHWND);
+		// s_FloaterHWND cleared by WM_DESTROY in FloaterDlgProc.
 	}
 
 	INT_PTR W3DExportSettingsDlg::DlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
@@ -223,11 +272,68 @@ namespace W3D::MaxTools
 			dlg->ReleaseControls();
 			return TRUE;
 		case WM_COMMAND:
+			dlg->m_CommandSource = hWnd;
 			return dlg->HandleCommand(LOWORD(wparam), HIWORD(wparam));
 		case CC_SPINNER_CHANGE:
+			dlg->m_CommandSource = hWnd;
 			return dlg->HandleSpinner(LOWORD(wparam));
 		}
 		return FALSE;
+	}
+
+	INT_PTR W3DExportSettingsDlg::FloaterDlgProc(HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam)
+	{
+		switch (message)
+		{
+		case WM_INITDIALOG:
+			s_FloaterHWND = hWnd;
+			if (s_ActiveInstance)
+				s_ActiveInstance->ConnectFloaterControls(hWnd);
+			return TRUE;
+		case WM_CLOSE:
+			DestroyWindow(hWnd);
+			return TRUE;
+		case WM_DESTROY:
+			// Release spinner wrappers directly — no instance pointer needed.
+			ReleaseISpinner(s_FloaterStaticSortingSpinner); s_FloaterStaticSortingSpinner = nullptr;
+			ReleaseISpinner(s_FloaterScreenSizeSpinner);    s_FloaterScreenSizeSpinner    = nullptr;
+			s_FloaterDazzleType = nullptr;
+			s_FloaterSelectEdit = nullptr;
+			s_FloaterHWND       = nullptr;
+			return TRUE;
+		case WM_COMMAND:
+			if (!s_ActiveInstance) return FALSE;
+			s_ActiveInstance->m_CommandSource = hWnd;
+			return s_ActiveInstance->HandleCommand(LOWORD(wparam), HIWORD(wparam));
+		case CC_SPINNER_CHANGE:
+			if (!s_ActiveInstance) return FALSE;
+			s_ActiveInstance->m_CommandSource = hWnd;
+			return s_ActiveInstance->HandleSpinner(LOWORD(wparam));
+		}
+		return FALSE;
+	}
+
+	void W3DExportSettingsDlg::ConnectFloaterControls(HWND hWnd)
+	{
+		s_FloaterDazzleType = GetDlgItem(hWnd, IDC_DAZZLE_MODE);
+		s_FloaterSelectEdit = GetDlgItem(hWnd, IDC_SELECTED_EDIT);
+		for (const TSTR& str : DazzleStrings())
+			ComboBox_AddString(s_FloaterDazzleType, str.data());
+
+		s_FloaterStaticSortingSpinner = SetupIntSpinner(hWnd, IDC_STATIC_SORT_LEVEL_SPIN, IDC_STATIC_SORT_LEVEL_EDIT, 0, 32, 0);
+		s_FloaterScreenSizeSpinner    = SetupFloatSpinner(hWnd, IDC_SCREEN_SPIN, IDC_SCREEN_EDIT, 0, FLT_MAX, 0);
+
+		RefreshDialogUI(hWnd, s_FloaterSelectEdit,
+		                s_FloaterStaticSortingSpinner, s_FloaterScreenSizeSpinner,
+		                s_FloaterDazzleType);
+	}
+
+	void W3DExportSettingsDlg::ReleaseFloaterControls()
+	{
+		ReleaseISpinner(s_FloaterStaticSortingSpinner); s_FloaterStaticSortingSpinner = nullptr;
+		ReleaseISpinner(s_FloaterScreenSizeSpinner);    s_FloaterScreenSizeSpinner    = nullptr;
+		s_FloaterDazzleType = nullptr;
+		s_FloaterSelectEdit = nullptr;
 	}
 
 	INT_PTR W3DExportSettingsDlg::HandleCommand(uint16 controlID, uint16 commandID)
@@ -238,6 +344,10 @@ namespace W3D::MaxTools
 		{
 			switch (controlID)
 			{
+			case IDC_CREATE_SETTINGS_FLOATER:
+				OpenFloater();
+				return TRUE;
+
 				//Geometry Type Radio Buttons
 			case IDC_GEOM_NORMAL:
 				SetGeometryType(W3DGeometryType::Normal);
@@ -272,13 +382,13 @@ namespace W3D::MaxTools
 
 				//Export Flags
 			case IDC_EXPORT_GEOMETRY:
-				ModifyExportFlags(W3DExportFlags::ExportGeometry, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyExportFlags(W3DExportFlags::ExportGeometry, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_EXPORT_TRANSFORM:
-				ModifyExportFlags(W3DExportFlags::ExportTransform, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyExportFlags(W3DExportFlags::ExportTransform, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_STATIC_SORTING:
-				if (IsDlgButtonChecked(m_DialogRoot, controlID))
+				if (IsDlgButtonChecked(m_CommandSource, controlID))
 				{
 					SetStaticSortLevel(1);
 				}
@@ -290,51 +400,51 @@ namespace W3D::MaxTools
 
 				//Geometry Flags
 			case IDC_TWO_SIDED:
-				ModifyGeometryFlags(W3DGeometryFlags::TwoSided, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::TwoSided, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_HIDE:
-				ModifyGeometryFlags(W3DGeometryFlags::Hide, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::Hide, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_Z_NORMAL:
-				ModifyGeometryFlags(W3DGeometryFlags::ZNormal, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::ZNormal, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_KEEP_NORMAL:
-				ModifyGeometryFlags(W3DGeometryFlags::KeepNml, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::KeepNml, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_VALPHA:
-				ModifyGeometryFlags(W3DGeometryFlags::VAlpha, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::VAlpha, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_SHADOW:
-				ModifyGeometryFlags(W3DGeometryFlags::Shadow, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::Shadow, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_SHATTER:
-				ModifyGeometryFlags(W3DGeometryFlags::Shatter, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::Shatter, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_TANGENTS:
-				ModifyGeometryFlags(W3DGeometryFlags::Tangents, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::Tangents, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_PRELIT:
-				ModifyGeometryFlags(W3DGeometryFlags::Prelit, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::Prelit, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_ALWAYSDYNLIGHT:
-				ModifyGeometryFlags(W3DGeometryFlags::AlwaysDynLight, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyGeometryFlags(W3DGeometryFlags::AlwaysDynLight, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 
 				// Collision Flags
 			case IDC_PHYSICAL:
-				ModifyCollisionFlags(W3DCollisionFlags::Physical, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyCollisionFlags(W3DCollisionFlags::Physical, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_PROJECTILE:
-				ModifyCollisionFlags(W3DCollisionFlags::Projectile, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyCollisionFlags(W3DCollisionFlags::Projectile, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_VEHICLE:
-				ModifyCollisionFlags(W3DCollisionFlags::Vehicle, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyCollisionFlags(W3DCollisionFlags::Vehicle, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_VIS:
-				ModifyCollisionFlags(W3DCollisionFlags::Vis, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyCollisionFlags(W3DCollisionFlags::Vis, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			case IDC_CAMERA:
-				ModifyCollisionFlags(W3DCollisionFlags::Camera, IsDlgButtonChecked(m_DialogRoot, controlID));
+				ModifyCollisionFlags(W3DCollisionFlags::Camera, IsDlgButtonChecked(m_CommandSource, controlID));
 				return TRUE;
 			}
 			break;
@@ -344,9 +454,12 @@ namespace W3D::MaxTools
 			switch (controlID)
 			{
 			case IDC_DAZZLE_MODE:
-				SetDazzleType(DazzleStrings()[ComboBox_GetCurSel(m_DazzleType)]);
+			{
+				HWND combo = (m_CommandSource == s_FloaterHWND) ? s_FloaterDazzleType : m_DazzleType;
+				SetDazzleType(DazzleStrings()[ComboBox_GetCurSel(combo)]);
 				return TRUE;
 			}
+			} //switch (controlID)
 			break;
 		} //CBN_SELCHANGE
 		}
@@ -356,14 +469,21 @@ namespace W3D::MaxTools
 
 	INT_PTR W3DExportSettingsDlg::HandleSpinner(uint16 controlID)
 	{
+		const bool fromFloater = (m_CommandSource == s_FloaterHWND);
 		switch (controlID)
 		{
 		case IDC_STATIC_SORT_LEVEL_SPIN:
-			SetStaticSortLevel(m_StaticSortingSpinner->GetIVal());
+		{
+			ISpinnerControl* spin = fromFloater ? s_FloaterStaticSortingSpinner : m_StaticSortingSpinner;
+			if (spin) SetStaticSortLevel(spin->GetIVal());
 			return TRUE;
+		}
 		case IDC_SCREEN_SPIN:
-			SetScreenSize(m_ScreenSizeSpinner->GetFVal());
+		{
+			ISpinnerControl* spin = fromFloater ? s_FloaterScreenSizeSpinner : m_ScreenSizeSpinner;
+			if (spin) SetScreenSize(spin->GetFVal());
 			return TRUE;
+		}
 		}
 
 		return FALSE;
@@ -499,6 +619,23 @@ namespace W3D::MaxTools
 
 	void W3DExportSettingsDlg::RefreshUI()
 	{
+		if (m_DialogRoot)
+			RefreshDialogUI(m_DialogRoot, m_SelectionEdit,
+			                m_StaticSortingSpinner, m_ScreenSizeSpinner, m_DazzleType);
+		if (s_FloaterHWND)
+			RefreshDialogUI(s_FloaterHWND, s_FloaterSelectEdit,
+			                s_FloaterStaticSortingSpinner, s_FloaterScreenSizeSpinner, s_FloaterDazzleType);
+	}
+
+	void W3DExportSettingsDlg::RefreshDialogUI(HWND root, HWND selEdit,
+	    ISpinnerControl* sortSpin, ISpinnerControl* screenSpin, HWND dazzleCombo)
+	{
+		HWND m_DialogRoot         = root;
+		HWND m_SelectionEdit      = selEdit;
+		ISpinnerControl* m_StaticSortingSpinner = sortSpin;
+		ISpinnerControl* m_ScreenSizeSpinner    = screenSpin;
+		HWND m_DazzleType         = dazzleCombo;
+
 		EnableWindow(GetDlgItem(m_DialogRoot, IDC_SELECTED_EDIT), FALSE);
 		if (m_Utilities.SelectedNodes().empty())
 		{

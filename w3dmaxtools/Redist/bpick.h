@@ -17,6 +17,9 @@ namespace W3D::MaxTools
 		virtual ~BonePickerUserClass() = default;
 		virtual void User_Picked_Bone(INode* node) = 0;
 		virtual void User_Picked_Bones(INodeTab& nodetab) = 0;
+		// Called when the viewport pick mode ends (right-click / escape).
+		// Implementors should reset their selection mode and update button states.
+		virtual void User_Exited_Pick_Mode() = 0;
 	};
 
 	// Picker. Wears three Max-callback hats: PickNodeCallback (filter scene
@@ -44,7 +47,7 @@ namespace W3D::MaxTools
 		BOOL HitTest(IObjParam* ip, HWND hWnd, ViewExp* vpt, IPoint2 m, int flags) override;
 		BOOL Pick(IObjParam* ip, ViewExp* vpt) override;
 		void EnterMode(IObjParam* /*ip*/) override {}
-		void ExitMode(IObjParam* /*ip*/)  override {}
+		void ExitMode(IObjParam* /*ip*/)  override;
 		PickNodeCallback* GetFilter() override { return this; }
 		BOOL RightClick(IObjParam* /*ip*/, ViewExp* /*vpt*/) override { return TRUE; }
 

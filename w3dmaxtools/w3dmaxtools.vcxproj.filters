@@ -79,12 +79,12 @@
     <ClCompile Include="..\w3dmaxtools\Source\w3dutilities.cpp">
       <Filter>01. Sources</Filter>
     </ClCompile>
-    <ClCompile Include="..\w3dmaxtools\w3dmaxtools.rc">
-      <Filter>04. Resources</Filter>
-    </ClCompile>
     <ClCompile Include="..\w3dmaxtools\w3dmaxtools_pch.cpp">
       <Filter>01. Sources</Filter>
     </ClCompile>
+    <ClCompile Include="..\w3dmaxtools\Source\boneicon.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\bpick.cpp" />
+    <ClCompile Include="..\w3dmaxtools\Source\namedsel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\w3dmaxtools\d3dx11effect.h">
@@ -135,6 +135,9 @@
     <ClInclude Include="..\w3dmaxtools\w3dmaxtools_pch.h">
       <Filter>02. Headers</Filter>
     </ClInclude>
+    <ClInclude Include="..\w3dmaxtools\Redist\boneicon.h" />
+    <ClInclude Include="..\w3dmaxtools\Redist\bpick.h" />
+    <ClInclude Include="..\w3dmaxtools\Redist\namedsel.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\w3dmaxtools\dxutil.def" />
@@ -160,5 +163,11 @@
     <Filter Include="shared">
       <UniqueIdentifier>{b9e7819e-c763-6313-e2fb-3eefcfecfc0e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="NewFilter1">
+      <UniqueIdentifier>{7c850f82-e6cc-4daf-a3ca-0ae63648c28f}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\w3dmaxtools\w3dmaxtools.rc" />
   </ItemGroup>
 </Project>

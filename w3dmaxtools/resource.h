@@ -289,13 +289,16 @@
 #define IDC_WWSKIN_UNLINK               1209
 #define IDC_WWSKIN_CLASSIC_MODE         1210
 
+#define IDD_W3D_UTIL_SETTINGS_FLOATER   170
+#define IDC_CREATE_SETTINGS_FLOATER     1211
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        170
+#define _APS_NEXT_RESOURCE_VALUE        171
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1211
+#define _APS_NEXT_CONTROL_VALUE         1212
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
