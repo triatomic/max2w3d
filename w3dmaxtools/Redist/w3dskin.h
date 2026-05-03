@@ -72,19 +72,6 @@ namespace W3D::MaxTools
 		NamedSelSetList       VertSelSets;
 		Tab<InfluenceStruct>  VertData;
 
-		// Bind-pose Explicit normals captured from the base mesh's MeshNormalSpec.
-		// Used by ModifyObject to re-skin Explicit normals every evaluation so they
-		// follow bone deformation instead of staying frozen in bind pose. NormalToVert
-		// maps each MeshNormalSpec entry to the vertex (and therefore the bone) that
-		// drives it. Both arrays are runtime caches — not persisted.
-		Tab<Point3>           BaseNormals;
-		Tab<int>              NormalToVert;
-
-		// Refresh BaseNormals / NormalToVert from `mesh`. Does nothing if the mesh has
-		// no MeshNormalSpec or no Explicit entries — in that case ModifyObject leaves
-		// normals alone (current pre-fix behaviour) instead of writing wrong values.
-		void Capture_Base_Normals(Mesh* mesh);
-
 		enum {
 			FLAGS_CHUNK            = 0x0000,
 			VERT_SEL_CHUNK         = 0x0010,
