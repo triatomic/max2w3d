@@ -3,6 +3,8 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <algorithm>
+#include <cwctype>
 #include <commctrl.h>
 #include <uxtheme.h>
 #include <vsstyle.h>
@@ -25,6 +27,9 @@
 HWND mainwnd;
 HWND treewnd;
 HWND listwnd;
+HWND filterwnd;
+HWND statuswnd;
+HWND progresswnd;
 HMENU menu;
 HACCEL accel;
 int mainwidth;
@@ -32,6 +37,18 @@ int mainheight;
 int splitterX = 300;
 bool splitterDragging = false;
 static const int SPLITTER_WIDTH = 5;
+static const int FILTER_HEIGHT = 22;
+static int statusHeight = 0;
+
+enum ViewMode
+{
+    VIEW_ORIGINAL = 0,
+    VIEW_ALPHABETICAL,
+    VIEW_BY_TYPE,
+    VIEW_FLAT,
+};
+static ViewMode g_viewMode = VIEW_ORIGINAL;
+static std::wstring g_filterText;
 #define CLASS_NAME L"WDUMP"
 #define WND_TITLE L"wdump"
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' " "version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
@@ -3781,6 +3798,19 @@ HTREEITEM TreeViewInsertItem(HWND tree, const wchar_t *text, HTREEITEM parent, H
 	return TreeView_InsertItem(tree, &str);
 }
 
+// Single-message insert with both text and lParam (saves one TVM_SETITEM
+// round-trip per node — meaningful on trees with tens of thousands of nodes).
+static HTREEITEM TreeViewInsertItemP(HWND tree, const wchar_t *text, HTREEITEM parent, HTREEITEM insertafter, LPARAM param)
+{
+	TVINSERTSTRUCT str;
+	str.hParent = parent;
+	str.hInsertAfter = insertafter;
+	str.item.mask = TVIF_TEXT | TVIF_PARAM;
+	str.item.pszText = (LPWSTR)text;
+	str.item.lParam = param;
+	return TreeView_InsertItem(tree, &str);
+}
+
 void TreeViewSetItem(HWND tree, HTREEITEM item, LPARAM param)
 {
 	TVITEM tv;
@@ -4737,48 +4767,175 @@ static const ChunkData *FindMeshHeader(const ChunkData *meshChunk)
 	return nullptr;
 }
 
-void AddItems(ChunkData *data, HTREEITEM item)
+// Lowercased copy for case-insensitive filter compare.
+static std::wstring ToLowerW(const wchar_t *s)
 {
-	WideStringClass str = data->name;
-	HTREEITEM newitem = TreeViewInsertItem(treewnd, str, item, TVI_LAST);
-	TreeViewSetItem(treewnd, newitem, (LPARAM)data);
-	for (int i = 0; i < data->subchunks.Count(); i++)
+	std::wstring out = s ? s : L"";
+	for (size_t i = 0; i < out.size(); i++)
+		out[i] = (wchar_t)towlower(out[i]);
+	return out;
+}
+
+// ASCII-lowercased filter, kept in sync with g_filterText. Chunk names and
+// MeshName/ContainerName values are ASCII, so we can avoid per-node UTF
+// conversion during the filter walk.
+static std::string g_filterTextA;
+
+// Per-rebuild memo of "this chunk or a descendant matches the filter".
+// Without this the recursive AddItems would re-walk every subtree from each
+// ancestor, blowing rebuild time up to O(N * depth) on deep trees.
+static std::unordered_map<const ChunkData *, bool> g_filterCache;
+
+static const char *MeshDisplayName(ChunkData *meshChunk);
+
+static bool ContainsCI(const char *hay, const char *needle)
+{
+	if (!*needle) return true;
+	for (; *hay; hay++)
 	{
-		AddItems(data->subchunks[i], newitem);
+		const char *h = hay; const char *n = needle;
+		while (*n && *h && (char)tolower((unsigned char)*h) == *n) { h++; n++; }
+		if (!*n) return true;
+	}
+	return false;
+}
+
+// Does this chunk's own name (or, for meshes, its display MeshName) match
+// the active filter? No recursion into children.
+static bool ChunkMatchesSelf(const ChunkData *data)
+{
+	if (g_filterTextA.empty()) return true;
+	if (ContainsCI(data->name.Peek_Buffer(), g_filterTextA.c_str())) return true;
+	if (data->name == "W3D_CHUNK_MESH")
+	{
+		const char *display = MeshDisplayName(const_cast<ChunkData *>(data));
+		if (display && ContainsCI(display, g_filterTextA.c_str())) return true;
+	}
+	return false;
+}
+
+// Should this chunk appear in the filtered tree at all? True if the chunk
+// itself matches OR any descendant matches (so we keep ancestors as
+// breadcrumbs to the match). Memoized per rebuild via g_filterCache.
+static bool ChunkMatchesFilter(const ChunkData *data)
+{
+	if (g_filterTextA.empty()) return true;
+	auto it = g_filterCache.find(data);
+	if (it != g_filterCache.end()) return it->second;
+	bool match = ChunkMatchesSelf(data);
+	if (!match)
+	{
+		for (int i = 0; i < data->subchunks.Count(); i++)
+			if (ChunkMatchesFilter(data->subchunks[i])) { match = true; break; }
+	}
+	g_filterCache.emplace(data, match);
+	return match;
+}
+
+static const char *MeshDisplayName(ChunkData *meshChunk)
+{
+	const ChunkData *header = FindMeshHeader(meshChunk);
+	const char *meshName = header ? FindInfoValue(header, "MeshName") : nullptr;
+	return (meshName && *meshName) ? meshName : meshChunk->name.Peek_Buffer();
+}
+
+// UTF-8/ASCII to UTF-16 into a caller-provided buffer (avoids the
+// WideStringClass allocation per insert). Chunk names fit comfortably in
+// 256 wchar_t; oversize names get truncated rather than allocating.
+static const wchar_t *WidenInto(wchar_t *buf, size_t cap, const char *s)
+{
+	if (!s) { buf[0] = 0; return buf; }
+	int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, buf, (int)cap);
+	if (n <= 0) { buf[0] = 0; }
+	else if ((size_t)n > cap) { buf[cap - 1] = 0; }
+	return buf;
+}
+
+static void SortByDisplayName(std::vector<ChunkData *> &v)
+{
+	std::sort(v.begin(), v.end(), [](ChunkData *a, ChunkData *b) {
+		const char *na = (a->name == "W3D_CHUNK_MESH") ? MeshDisplayName(a) : a->name.Peek_Buffer();
+		const char *nb = (b->name == "W3D_CHUNK_MESH") ? MeshDisplayName(b) : b->name.Peek_Buffer();
+		return _stricmp(na, nb) < 0;
+	});
+}
+
+// `forceAll` means: ancestor already matched the filter, so include this
+// node and its entire subtree unconditionally. Without it, the filter
+// would hide the matched node's children — defeating the point of
+// searching for e.g. a mesh by name.
+void AddItems(ChunkData *data, HTREEITEM item, bool forceAll)
+{
+	if (!forceAll && !ChunkMatchesFilter(data)) return;
+	bool descendForceAll = forceAll || ChunkMatchesSelf(data);
+	wchar_t wbuf[256];
+	HTREEITEM newitem = TreeViewInsertItemP(treewnd,
+		WidenInto(wbuf, 256, data->name.Peek_Buffer()), item, TVI_LAST, (LPARAM)data);
+	if (g_viewMode == VIEW_ALPHABETICAL)
+	{
+		std::vector<ChunkData *> kids;
+		kids.reserve(data->subchunks.Count());
+		for (int i = 0; i < data->subchunks.Count(); i++)
+			kids.push_back(data->subchunks[i]);
+		SortByDisplayName(kids);
+		for (size_t i = 0; i < kids.size(); i++)
+			AddItems(kids[i], newitem, descendForceAll);
+	}
+	else
+	{
+		for (int i = 0; i < data->subchunks.Count(); i++)
+			AddItems(data->subchunks[i], newitem, descendForceAll);
 	}
 }
 
 // Inserts a single W3D_CHUNK_MESH under a parent treeview node, displaying
 // the MeshName from its header (falls back to the raw chunk name).
-static void AddMeshItem(ChunkData *meshChunk, HTREEITEM parent)
+static void AddMeshItem(ChunkData *meshChunk, HTREEITEM parent, bool forceAll)
 {
-	const ChunkData *header = FindMeshHeader(meshChunk);
-	const char *meshName = header ? FindInfoValue(header, "MeshName") : nullptr;
-	WideStringClass label = (meshName && *meshName) ? meshName : meshChunk->name.Peek_Buffer();
-	HTREEITEM mesh = TreeViewInsertItem(treewnd, label, parent, TVI_LAST);
-	TreeViewSetItem(treewnd, mesh, (LPARAM)meshChunk);
-	for (int i = 0; i < meshChunk->subchunks.Count(); i++)
+	if (!forceAll && !ChunkMatchesFilter(meshChunk)) return;
+	bool descendForceAll = forceAll || ChunkMatchesSelf(meshChunk);
+	wchar_t wbuf[256];
+	HTREEITEM mesh = TreeViewInsertItemP(treewnd,
+		WidenInto(wbuf, 256, MeshDisplayName(meshChunk)), parent, TVI_LAST, (LPARAM)meshChunk);
+	if (g_viewMode == VIEW_ALPHABETICAL)
 	{
-		AddItems(meshChunk->subchunks[i], mesh);
+		std::vector<ChunkData *> kids;
+		kids.reserve(meshChunk->subchunks.Count());
+		for (int i = 0; i < meshChunk->subchunks.Count(); i++)
+			kids.push_back(meshChunk->subchunks[i]);
+		SortByDisplayName(kids);
+		for (size_t i = 0; i < kids.size(); i++)
+			AddItems(kids[i], mesh, descendForceAll);
+	}
+	else
+	{
+		for (int i = 0; i < meshChunk->subchunks.Count(); i++)
+			AddItems(meshChunk->subchunks[i], mesh, descendForceAll);
 	}
 }
 
-// Populates the treeview from a master ChunkData: top-level meshes are
-// grouped under synthetic nodes named after their ContainerName, with the
-// group inserted at the first mesh's original position. Legacy meshes
-// (W3D_CHUNK_MESH_HEADER without a container) all land under "(legacy)".
-// Non-mesh top-level chunks are inserted in place via AddItems.
-static void AddTopLevelItems(ChunkData *root)
+// Original-order layout: top-level meshes are grouped under synthetic
+// ContainerName nodes; non-mesh chunks in original file order. This is the
+// default view; alphabetical mode uses the same shape but sorts siblings.
+static void AddTopLevelGrouped(ChunkData *root)
 {
 	std::unordered_map<std::string, HTREEITEM> containerNodes;
+	std::vector<ChunkData *> children;
+	children.reserve(root->subchunks.Count());
 	for (int i = 0; i < root->subchunks.Count(); i++)
+		children.push_back(root->subchunks[i]);
+	if (g_viewMode == VIEW_ALPHABETICAL)
+		SortByDisplayName(children);
+	wchar_t wbuf[256];
+	for (size_t i = 0; i < children.size(); i++)
 	{
-		ChunkData *child = root->subchunks[i];
+		ChunkData *child = children[i];
 		if (child->name != "W3D_CHUNK_MESH")
 		{
-			AddItems(child, TVI_ROOT);
+			AddItems(child, TVI_ROOT, false);
 			continue;
 		}
+		if (!ChunkMatchesFilter(child)) continue;
 		const ChunkData *header = FindMeshHeader(child);
 		const char *container = header ? FindInfoValue(header, "ContainerName") : nullptr;
 		std::string key = (container && *container) ? container : "(legacy)";
@@ -4786,18 +4943,91 @@ static void AddTopLevelItems(ChunkData *root)
 		HTREEITEM group;
 		if (it == containerNodes.end())
 		{
-			WideStringClass label = key.c_str();
-			group = TreeViewInsertItem(treewnd, label, TVI_ROOT, TVI_LAST);
-			TreeViewSetItem(treewnd, group, (LPARAM)0);
+			group = TreeViewInsertItemP(treewnd,
+				WidenInto(wbuf, 256, key.c_str()), TVI_ROOT, TVI_LAST, (LPARAM)0);
 			containerNodes.emplace(std::move(key), group);
 		}
 		else
 		{
 			group = it->second;
 		}
-		AddMeshItem(child, group);
+		AddMeshItem(child, group, false);
 	}
 }
+
+// Flat layout: skip the synthetic ContainerName grouping, show meshes at
+// root in (optionally sorted) order alongside other chunks.
+static void AddTopLevelFlat(ChunkData *root)
+{
+	std::vector<ChunkData *> children;
+	children.reserve(root->subchunks.Count());
+	for (int i = 0; i < root->subchunks.Count(); i++)
+		children.push_back(root->subchunks[i]);
+	if (g_viewMode == VIEW_ALPHABETICAL)
+		SortByDisplayName(children);
+	for (size_t i = 0; i < children.size(); i++)
+	{
+		ChunkData *child = children[i];
+		if (!ChunkMatchesFilter(child)) continue;
+		if (child->name == "W3D_CHUNK_MESH")
+			AddMeshItem(child, TVI_ROOT, false);
+		else
+			AddItems(child, TVI_ROOT, false);
+	}
+}
+
+// By-type layout: bucket every top-level chunk under a synthetic node named
+// after its chunk type. Useful for navigating large files where you want
+// "all animations" or "all hierarchies" in one place.
+static void AddTopLevelByType(ChunkData *root)
+{
+	std::unordered_map<std::string, HTREEITEM> typeNodes;
+	std::vector<ChunkData *> children;
+	children.reserve(root->subchunks.Count());
+	for (int i = 0; i < root->subchunks.Count(); i++)
+		children.push_back(root->subchunks[i]);
+	if (g_viewMode == VIEW_ALPHABETICAL)
+		SortByDisplayName(children);
+	wchar_t wbuf[256];
+	for (size_t i = 0; i < children.size(); i++)
+	{
+		ChunkData *child = children[i];
+		if (!ChunkMatchesFilter(child)) continue;
+		std::string key = child->name.Peek_Buffer();
+		auto it = typeNodes.find(key);
+		HTREEITEM group;
+		if (it == typeNodes.end())
+		{
+			group = TreeViewInsertItemP(treewnd,
+				WidenInto(wbuf, 256, key.c_str()), TVI_ROOT, TVI_LAST, (LPARAM)0);
+			typeNodes.emplace(std::move(key), group);
+		}
+		else
+		{
+			group = it->second;
+		}
+		if (child->name == "W3D_CHUNK_MESH")
+			AddMeshItem(child, group, false);
+		else
+			AddItems(child, group, false);
+	}
+}
+
+static void AddTopLevelItems(ChunkData *root)
+{
+	switch (g_viewMode)
+	{
+	case VIEW_BY_TYPE: AddTopLevelByType(root); break;
+	case VIEW_FLAT:    AddTopLevelFlat(root); break;
+	case VIEW_ORIGINAL:
+	case VIEW_ALPHABETICAL:
+	default:           AddTopLevelGrouped(root); break;
+	}
+}
+
+// Forward decls for view-mode plumbing used from WM_COMMAND.
+static void RebuildTree();
+static void UpdateViewMenuChecks();
 
 ChunkData *master = nullptr;
 char currentFilePath[MAX_PATH] = "";
@@ -4845,7 +5075,7 @@ static void LoadFile(const char *path)
 	}
 	master = new ChunkData;
 	ParseSubchunks(cload, master);
-	AddTopLevelItems(master);
+	RebuildTree();
 	strncpy(currentFilePath, path, sizeof(currentFilePath) - 1);
 	currentFilePath[sizeof(currentFilePath) - 1] = '\0';
 
@@ -4857,9 +5087,371 @@ static void LoadFile(const char *path)
 
 static void ApplySplitter()
 {
+	int contentH = max(0, mainheight - statusHeight);
 	splitterX = max(50, min(splitterX, mainwidth - 50 - SPLITTER_WIDTH));
-	SetWindowPos(treewnd, nullptr, 0, 0, splitterX, mainheight, SWP_NOMOVE | SWP_NOZORDER);
-	SetWindowPos(listwnd, nullptr, splitterX + SPLITTER_WIDTH, 0, mainwidth - splitterX - SPLITTER_WIDTH, mainheight, SWP_NOZORDER);
+	if (filterwnd)
+		SetWindowPos(filterwnd, nullptr, 0, 0, splitterX, FILTER_HEIGHT, SWP_NOZORDER);
+	SetWindowPos(treewnd, nullptr, 0, FILTER_HEIGHT, splitterX, max(0, contentH - FILTER_HEIGHT), SWP_NOZORDER);
+	SetWindowPos(listwnd, nullptr, splitterX + SPLITTER_WIDTH, 0, mainwidth - splitterX - SPLITTER_WIDTH, contentH, SWP_NOZORDER);
+	if (progresswnd)
+	{
+		// Place progress bar in the right portion of the status bar (last
+		// part). Status bar handles its own positioning via WM_SIZE.
+		RECT pr;
+		SendMessage(statuswnd, SB_GETRECT, 1, (LPARAM)&pr);
+		MapWindowPoints(statuswnd, mainwnd, (POINT *)&pr, 2);
+		SetWindowPos(progresswnd, nullptr, pr.left, pr.top, pr.right - pr.left, pr.bottom - pr.top, SWP_NOZORDER);
+	}
+}
+
+static int CountChunks(const ChunkData *data)
+{
+	int n = 1;
+	for (int i = 0; i < data->subchunks.Count(); i++)
+		n += CountChunks(data->subchunks[i]);
+	return n;
+}
+
+static int CountChunksFiltered(const ChunkData *data)
+{
+	int n = ChunkMatchesFilter(data) ? 1 : 0;
+	for (int i = 0; i < data->subchunks.Count(); i++)
+		n += CountChunksFiltered(data->subchunks[i]);
+	return n;
+}
+
+static void SetStatusText(const wchar_t *text)
+{
+	if (statuswnd) SendMessageW(statuswnd, SB_SETTEXTW, 0, (LPARAM)text);
+}
+
+static void ShowProgressMarquee(bool on)
+{
+	if (!progresswnd) return;
+	ShowWindow(progresswnd, on ? SW_SHOW : SW_HIDE);
+	SendMessage(progresswnd, PBM_SETMARQUEE, on ? TRUE : FALSE, 30);
+}
+
+// Tear down and repopulate the tree from `master` using the current view
+// mode and filter text. Disables redraw and fade-expandos during the
+// rebuild — the latter halves insert cost on large trees because the tree
+// otherwise schedules a fade animation per node with children.
+static void RebuildTree()
+{
+	if (!master) return;
+	SetStatusText(L"Rebuilding tree...");
+	ShowProgressMarquee(true);
+	UpdateWindow(statuswnd);
+	UpdateWindow(progresswnd);
+
+	SendMessage(treewnd, WM_SETREDRAW, FALSE, 0);
+	TreeView_SetExtendedStyle(treewnd, 0, TVS_EX_FADEINOUTEXPANDOS);
+	TreeView_SetItemState(treewnd, TreeView_GetSelection(treewnd), 0, TVIS_SELECTED);
+	TreeView_DeleteAllItems(treewnd);
+	g_filterCache.clear();
+	AddTopLevelItems(master);
+
+	int total = 0, shown = 0;
+	for (int i = 0; i < master->subchunks.Count(); i++)
+	{
+		total += CountChunks(master->subchunks[i]);
+		shown += CountChunksFiltered(master->subchunks[i]);
+	}
+	// Filter cache holds pointers into `master`; safe across rebuilds, but
+	// we drop it to keep memory steady for very large files.
+	g_filterCache.clear();
+	TreeView_SetExtendedStyle(treewnd, TVS_EX_FADEINOUTEXPANDOS, TVS_EX_FADEINOUTEXPANDOS);
+	SendMessage(treewnd, WM_SETREDRAW, TRUE, 0);
+	InvalidateRect(treewnd, nullptr, TRUE);
+
+	ShowProgressMarquee(false);
+	wchar_t status[128];
+	if (g_filterTextA.empty())
+		swprintf(status, 128, L"%d chunks", total);
+	else
+		swprintf(status, 128, L"Filtered: %d / %d chunks", shown, total);
+	SetStatusText(status);
+}
+
+static WNDPROC g_origFilterProc = nullptr;
+
+// Filter edit subclass: rebuild on Enter only. Swallow Enter so the edit
+// doesn't beep, and pass everything else through. Escape clears the filter
+// and rebuilds (small affordance — easier than selecting all + delete).
+static LRESULT CALLBACK FilterEditProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	if (uMsg == WM_KEYDOWN && wParam == VK_RETURN)
+	{
+		wchar_t buf[256];
+		GetWindowTextW(hWnd, buf, 256);
+		g_filterText = ToLowerW(buf);
+		char abuf[256];
+		int n = WideCharToMultiByte(CP_UTF8, 0, g_filterText.c_str(), -1, abuf, 256, nullptr, nullptr);
+		g_filterTextA.assign(abuf, n > 0 ? n - 1 : 0);
+		RebuildTree();
+		return 0;
+	}
+	if (uMsg == WM_KEYDOWN && wParam == VK_ESCAPE)
+	{
+		SetWindowTextW(hWnd, L"");
+		g_filterText.clear();
+		g_filterTextA.clear();
+		RebuildTree();
+		return 0;
+	}
+	if (uMsg == WM_CHAR && (wParam == VK_RETURN || wParam == VK_ESCAPE))
+		return 0; // suppress MessageBeep from default EDIT behavior
+	return CallWindowProc(g_origFilterProc, hWnd, uMsg, wParam, lParam);
+}
+
+static void UpdateViewMenuChecks()
+{
+	UINT ids[4] = { ID_VIEW_ORIGINAL, ID_VIEW_ALPHABETICAL, ID_VIEW_BY_TYPE, ID_VIEW_FLAT };
+	for (int i = 0; i < 4; i++)
+		CheckMenuItem(menu, ids[i],
+			MF_BYCOMMAND | (((int)g_viewMode == i) ? MF_CHECKED : MF_UNCHECKED));
+}
+
+// Append `count` copies of `c` to `out` — small helper to keep the
+// serializer below readable.
+static void AppendIndent(std::string &out, int count, char c = ' ')
+{
+	out.append((size_t)count, c);
+}
+
+// Serialize one chunk and (filtered) descendants into `out`. Mirrors what
+// the user sees in the tree: nodes hidden by the filter are skipped, but
+// once a node self-matches its full subtree is included (same rule as
+// AddItems' forceAll).
+static void SerializeChunkSubtree(const ChunkData *data, std::string &out, int depth, bool forceAll)
+{
+	if (!forceAll && !ChunkMatchesFilter(data)) return;
+	bool descendForceAll = forceAll || ChunkMatchesSelf(data);
+
+	const char *displayName = data->name.Peek_Buffer();
+	if (data->name == "W3D_CHUNK_MESH")
+		displayName = MeshDisplayName(const_cast<ChunkData *>(data));
+
+	AppendIndent(out, depth * 2);
+	out.append("[");
+	out.append(displayName);
+	out.append("]\r\n");
+
+	for (int i = 0; i < data->data.Count(); i++)
+	{
+		const ChunkInfo *ci = data->data[i];
+		AppendIndent(out, depth * 2 + 2);
+		out.append(ci->name.Peek_Buffer());
+		out.append("\t");
+		out.append(ci->type.Peek_Buffer());
+		out.append("\t");
+		out.append(ci->value.Peek_Buffer());
+		out.append("\r\n");
+	}
+
+	for (int i = 0; i < data->subchunks.Count(); i++)
+		SerializeChunkSubtree(data->subchunks[i], out, depth + 1, descendForceAll);
+}
+
+// Copy the indented-text serialization of the selected subtree to the
+// clipboard as CF_UNICODETEXT (consistent with the listview copy path).
+static void CopyTreeSubtreeToClipboard()
+{
+	HTREEITEM sel = TreeView_GetSelection(treewnd);
+	if (!sel) return;
+	ChunkData *cd = (ChunkData *)TreeViewGetItem(treewnd, sel);
+	if (!cd) return; // synthetic group node (ContainerName / by-type bucket)
+
+	std::string out;
+	out.reserve(4096);
+	SerializeChunkSubtree(cd, out, 0, false);
+	if (out.empty()) return;
+
+	int wlen = MultiByteToWideChar(CP_UTF8, 0, out.c_str(), (int)out.size(), nullptr, 0);
+	if (wlen <= 0) return;
+	size_t bytes = ((size_t)wlen + 1) * sizeof(wchar_t);
+	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+	if (!hMem) return;
+	wchar_t *p = (wchar_t *)GlobalLock(hMem);
+	if (!p) { GlobalFree(hMem); return; }
+	MultiByteToWideChar(CP_UTF8, 0, out.c_str(), (int)out.size(), p, wlen);
+	p[wlen] = 0;
+	GlobalUnlock(hMem);
+
+	if (OpenClipboard(mainwnd))
+	{
+		EmptyClipboard();
+		SetClipboardData(CF_UNICODETEXT, hMem);
+		CloseClipboard();
+	}
+	else GlobalFree(hMem);
+}
+
+// RFC-4180 CSV field: quote if it contains comma, quote, CR or LF; double
+// internal quotes. Excel handles .csv natively (no import wizard) and
+// honors the quoting rules, unlike .tsv which it treats as a single column.
+static void AppendCSVField(std::string &out, const char *s)
+{
+	if (!s) { return; }
+	bool needsQuote = false;
+	for (const char *p = s; *p; p++)
+	{
+		if (*p == ',' || *p == '"' || *p == '\r' || *p == '\n') { needsQuote = true; break; }
+	}
+	if (!needsQuote) { out.append(s); return; }
+	out.push_back('"');
+	for (; *s; s++)
+	{
+		if (*s == '"') out.append("\"\"");
+		else out.push_back(*s);
+	}
+	out.push_back('"');
+}
+
+// Flatten the chunk subtree into CSV rows. Each data field becomes its own
+// row; chunks with no data still emit one row (so empty container chunks
+// remain visible in Excel). Path column is "/"-joined chunk names from the
+// dump root, which makes it easy to filter/group in Excel.
+static void SerializeChunkSubtreeCSV(const ChunkData *data, std::string &out, std::string &path)
+{
+	const char *displayName = data->name.Peek_Buffer();
+	if (data->name == "W3D_CHUNK_MESH")
+		displayName = MeshDisplayName(const_cast<ChunkData *>(data));
+
+	size_t pathBefore = path.size();
+	if (!path.empty()) path.push_back('/');
+	path.append(displayName);
+
+	if (data->data.Count() == 0)
+	{
+		AppendCSVField(out, path.c_str()); out.push_back(',');
+		AppendCSVField(out, displayName);  out.push_back(',');
+		out.append(",,\r\n"); // empty Name/Type/Value
+	}
+	else
+	{
+		for (int i = 0; i < data->data.Count(); i++)
+		{
+			const ChunkInfo *ci = data->data[i];
+			AppendCSVField(out, path.c_str());           out.push_back(',');
+			AppendCSVField(out, displayName);            out.push_back(',');
+			AppendCSVField(out, ci->name.Peek_Buffer()); out.push_back(',');
+			AppendCSVField(out, ci->type.Peek_Buffer()); out.push_back(',');
+			AppendCSVField(out, ci->value.Peek_Buffer());
+			out.append("\r\n");
+		}
+	}
+
+	for (int i = 0; i < data->subchunks.Count(); i++)
+		SerializeChunkSubtreeCSV(data->subchunks[i], out, path);
+
+	path.resize(pathBefore);
+}
+
+// Same payload as Copy subtree but written to a file. Plain text only —
+// the indented serializer doesn't produce HTML, and "Dump selected" is
+// meant for grep/diff/editor consumption rather than presentation.
+static void DumpSelectedSubtree()
+{
+	HTREEITEM sel = TreeView_GetSelection(treewnd);
+	if (!sel)
+	{
+		MessageBox(mainwnd, L"Select a tree node first.", L"wdump", MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+	ChunkData *cd = (ChunkData *)TreeViewGetItem(treewnd, sel);
+	if (!cd)
+	{
+		MessageBox(mainwnd, L"Selected node has no chunk data (it's a synthetic group).",
+			L"wdump", MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	// Best-effort label for the default filename: mesh display name for
+	// meshes, raw chunk name otherwise. Strip the W3D_CHUNK_ prefix to
+	// keep the suggested filename short.
+	const char *label = (cd->name == "W3D_CHUNK_MESH")
+		? MeshDisplayName(cd) : cd->name.Peek_Buffer();
+	const char *trimmed = label;
+	if (strncmp(trimmed, "W3D_CHUNK_", 10) == 0) trimmed += 10;
+
+	char fname[MAX_PATH];
+	StringClass stem = CurrentFileStem();
+	_snprintf(fname, MAX_PATH, "%s_SEL_%s.txt",
+		stem.Peek_Buffer(), (trimmed && *trimmed) ? trimmed : "node");
+	if (!GetSaveFile(fname,
+		L"Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0",
+		L"txt", mainwnd, L"Dump selected subtree"))
+		return;
+
+	// Dump ignores the active filter — the user navigated to this chunk
+	// specifically, so they want the complete subtree, not the filtered
+	// projection of it.
+	std::string out;
+	out.reserve(65536);
+	SerializeChunkSubtree(cd, out, 0, true);
+
+	FILE *f = fopen(fname, "wb");
+	if (!f)
+	{
+		MessageBox(mainwnd, L"Failed to open file for writing.", L"wdump", MB_OK | MB_ICONERROR);
+		return;
+	}
+	fwrite(out.data(), 1, out.size(), f);
+	fclose(f);
+}
+
+// Excel-friendly variant of DumpSelectedSubtree. Same selection rules, but
+// the output is a flat CSV with header row: Path, Chunk, Name, Type, Value.
+// CSV (not TSV) because Excel treats .tsv as a single column when opened
+// directly — only .csv is parsed without the import wizard.
+static void DumpSelectedSubtreeTSV()
+{
+	HTREEITEM sel = TreeView_GetSelection(treewnd);
+	if (!sel)
+	{
+		MessageBox(mainwnd, L"Select a tree node first.", L"wdump", MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+	ChunkData *cd = (ChunkData *)TreeViewGetItem(treewnd, sel);
+	if (!cd)
+	{
+		MessageBox(mainwnd, L"Selected node has no chunk data (it's a synthetic group).",
+			L"wdump", MB_OK | MB_ICONINFORMATION);
+		return;
+	}
+
+	const char *label = (cd->name == "W3D_CHUNK_MESH")
+		? MeshDisplayName(cd) : cd->name.Peek_Buffer();
+	const char *trimmed = label;
+	if (strncmp(trimmed, "W3D_CHUNK_", 10) == 0) trimmed += 10;
+
+	char fname[MAX_PATH];
+	StringClass stem = CurrentFileStem();
+	_snprintf(fname, MAX_PATH, "%s_SEL_%s.csv",
+		stem.Peek_Buffer(), (trimmed && *trimmed) ? trimmed : "node");
+	if (!GetSaveFile(fname,
+		L"CSV Files (*.csv)\0*.csv\0All Files (*.*)\0*.*\0\0",
+		L"csv", mainwnd, L"Dump selected subtree as CSV"))
+		return;
+
+	std::string out;
+	out.reserve(65536);
+	out.append("Path,Chunk,Name,Type,Value\r\n");
+	std::string path;
+	SerializeChunkSubtreeCSV(cd, out, path);
+
+	FILE *f = fopen(fname, "wb");
+	if (!f)
+	{
+		MessageBox(mainwnd, L"Failed to open file for writing.", L"wdump", MB_OK | MB_ICONERROR);
+		return;
+	}
+	// UTF-8 BOM so Excel detects encoding correctly on direct double-click.
+	const unsigned char bom[3] = { 0xEF, 0xBB, 0xBF };
+	fwrite(bom, 1, 3, f);
+	fwrite(out.data(), 1, out.size(), f);
+	fclose(f);
 }
 
 LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -4873,6 +5465,12 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 		{
 			mainwidth = LOWORD(lParam);
 			mainheight = HIWORD(lParam);
+			if (statuswnd)
+			{
+				SendMessage(statuswnd, WM_SIZE, 0, 0);
+				int parts[2] = { mainwidth - 200, -1 };
+				SendMessage(statuswnd, SB_SETPARTS, 2, (LPARAM)parts);
+			}
 			ApplySplitter();
 		}
 		break;
@@ -5007,6 +5605,27 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			beautifyDump = !beautifyDump;
 			CheckMenuItem(menu, ID_DUMP_BEAUTIFY,
 				MF_BYCOMMAND | (beautifyDump ? MF_CHECKED : MF_UNCHECKED));
+			break;
+		case ID_VIEW_ORIGINAL:
+		case ID_VIEW_ALPHABETICAL:
+		case ID_VIEW_BY_TYPE:
+		case ID_VIEW_FLAT:
+			g_viewMode = (ViewMode)(LOWORD(wParam) - ID_VIEW_ORIGINAL);
+			UpdateViewMenuChecks();
+			RebuildTree();
+			break;
+		case ID_VIEW_FILTER:
+			SetFocus(filterwnd);
+			SendMessage(filterwnd, EM_SETSEL, 0, -1);
+			break;
+		case ID_TREE_COPY_SUBTREE:
+			CopyTreeSubtreeToClipboard();
+			break;
+		case ID_DUMP_SELECTED:
+			DumpSelectedSubtree();
+			break;
+		case ID_DUMP_SELECTED_TSV:
+			DumpSelectedSubtreeTSV();
 			break;
 		default:
 			return FALSE;
@@ -5157,6 +5776,56 @@ LRESULT CALLBACK MainWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			DestroyMenu(ctx);
 			return 0;
 		}
+		if ((HWND)wParam == treewnd)
+		{
+			// Keyboard-initiated context menu reports (-1,-1); anchor under
+			// the selected item in that case so the popup isn't off-screen.
+			int x = GET_X_LPARAM(lParam);
+			int y = GET_Y_LPARAM(lParam);
+			HTREEITEM target = nullptr;
+			if (x == -1 && y == -1)
+			{
+				target = TreeView_GetSelection(treewnd);
+				RECT r;
+				if (target && TreeView_GetItemRect(treewnd, target, &r, TRUE))
+				{
+					POINT pt = { r.left, r.bottom };
+					ClientToScreen(treewnd, &pt);
+					x = pt.x; y = pt.y;
+				}
+				else
+				{
+					POINT pt = { 0, 0 };
+					ClientToScreen(treewnd, &pt);
+					x = pt.x; y = pt.y;
+				}
+			}
+			else
+			{
+				POINT pt = { x, y };
+				ScreenToClient(treewnd, &pt);
+				TVHITTESTINFO ht = {};
+				ht.pt = pt;
+				target = TreeView_HitTest(treewnd, &ht);
+				if (target) TreeView_SelectItem(treewnd, target);
+				else target = TreeView_GetSelection(treewnd);
+			}
+
+			HMENU ctx = CreatePopupMenu();
+			AppendMenu(ctx, MF_STRING, ID_TREE_COPY_SUBTREE,  L"Copy subtree\tCtrl+Shift+C");
+			AppendMenu(ctx, MF_STRING, ID_DUMP_SELECTED,      L"Dump selected...");
+			AppendMenu(ctx, MF_STRING, ID_DUMP_SELECTED_TSV,  L"Dump selected as CSV (Excel)...");
+			ChunkData *cd = target ? (ChunkData *)TreeViewGetItem(treewnd, target) : nullptr;
+			if (!cd)
+			{
+				EnableMenuItem(ctx, ID_TREE_COPY_SUBTREE,  MF_BYCOMMAND | MF_GRAYED);
+				EnableMenuItem(ctx, ID_DUMP_SELECTED,      MF_BYCOMMAND | MF_GRAYED);
+				EnableMenuItem(ctx, ID_DUMP_SELECTED_TSV,  MF_BYCOMMAND | MF_GRAYED);
+			}
+			TrackPopupMenu(ctx, TPM_RIGHTBUTTON, x, y, 0, mainwnd, nullptr);
+			DestroyMenu(ctx);
+			return 0;
+		}
 		break;
 	case WM_DROPFILES:
 		{
@@ -5216,7 +5885,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
 	INITCOMMONCONTROLSEX ex;
 	ex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-	ex.dwICC = ICC_WIN95_CLASSES | ICC_TREEVIEW_CLASSES | ICC_LISTVIEW_CLASSES;
+	ex.dwICC = ICC_WIN95_CLASSES | ICC_TREEVIEW_CLASSES | ICC_LISTVIEW_CLASSES | ICC_BAR_CLASSES | ICC_PROGRESS_CLASS;
 	InitCommonControlsEx(&ex);
 	WNDCLASSEXW wcls = {};
 	wcls.lpszClassName = CLASS_NAME;
@@ -5238,12 +5907,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	menu = LoadMenu(hInstance, MAKEINTRESOURCE(IDR_MAINMENU));
 	CheckMenuItem(menu, ID_DUMP_BEAUTIFY, MF_BYCOMMAND | MF_CHECKED);
+	CheckMenuItem(menu, ID_VIEW_ORIGINAL, MF_BYCOMMAND | MF_CHECKED);
 	mainwidth = window_rect.right - window_rect.left;
 	mainheight = window_rect.bottom - window_rect.top;
 
 	mainwnd = CreateWindowEx(0, CLASS_NAME, WND_TITLE, window_style, CW_USEDEFAULT, CW_USEDEFAULT, mainwidth, mainheight, nullptr, menu, hInstance, nullptr);
 	DragAcceptFiles(mainwnd, TRUE);
-	treewnd = CreateWindow(WC_TREEVIEW, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS, 0, 0, splitterX, mainheight, mainwnd, (HMENU)101, hInstance, nullptr);
+	filterwnd = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+		0, 0, splitterX, FILTER_HEIGHT, mainwnd, (HMENU)(INT_PTR)IDC_FILTER_EDIT, hInstance, nullptr);
+	HFONT guiFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+	SendMessage(filterwnd, WM_SETFONT, (WPARAM)guiFont, TRUE);
+	SendMessageW(filterwnd, EM_SETCUEBANNER, TRUE, (LPARAM)L"Filter (Ctrl+F, Enter to apply)");
+	g_origFilterProc = (WNDPROC)SetWindowLongPtrW(filterwnd, GWLP_WNDPROC, (LONG_PTR)FilterEditProc);
+	treewnd = CreateWindow(WC_TREEVIEW, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT | TVS_DISABLEDRAGDROP | TVS_SHOWSELALWAYS, 0, FILTER_HEIGHT, splitterX, mainheight - FILTER_HEIGHT, mainwnd, (HMENU)101, hInstance, nullptr);
 	listwnd = CreateWindow(WC_LISTVIEW, nullptr, WS_CHILD | WS_VISIBLE | WS_BORDER | LVS_REPORT, splitterX + SPLITTER_WIDTH, 0, mainwidth - splitterX - SPLITTER_WIDTH, mainheight, mainwnd, (HMENU)101, hInstance, nullptr);
 	// Modern explorer theme + double-buffered drawing on tree/list (matches W3DView).
 	SetWindowTheme(treewnd, L"Explorer", nullptr);
@@ -5256,6 +5932,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	ListViewInsertColumn(listwnd, 0, L"Name", 230);
 	ListViewInsertColumn(listwnd, 1, L"Type", 70);
 	ListViewInsertColumn(listwnd, 2, L"Value", 0xFFFF);
+
+	// Status bar with two parts: status text on the left, progress bar
+	// embedded in the right part. Status bar resizes itself on WM_SIZE
+	// (auto-handled by SBARS_SIZEGRIP); we only push our part widths.
+	statuswnd = CreateWindowExW(0, STATUSCLASSNAMEW, L"", WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP,
+		0, 0, 0, 0, mainwnd, (HMENU)(INT_PTR)102, hInstance, nullptr);
+	int parts[2] = { -1, -1 };
+	// Right part 200px wide for the progress bar; left part takes the rest.
+	{
+		RECT cr; GetClientRect(mainwnd, &cr);
+		parts[0] = cr.right - 200;
+		parts[1] = -1;
+	}
+	SendMessage(statuswnd, SB_SETPARTS, 2, (LPARAM)parts);
+	progresswnd = CreateWindowExW(0, PROGRESS_CLASSW, L"",
+		WS_CHILD | PBS_MARQUEE | PBS_SMOOTH,
+		0, 0, 100, 16, mainwnd, (HMENU)(INT_PTR)103, hInstance, nullptr);
+	{
+		SendMessage(statuswnd, WM_SIZE, 0, 0);
+		RECT sr; GetWindowRect(statuswnd, &sr);
+		statusHeight = sr.bottom - sr.top;
+		RECT cr; GetClientRect(mainwnd, &cr);
+		mainwidth = cr.right; mainheight = cr.bottom;
+		ApplySplitter();
+	}
+
 	accel = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCEL));
 	MSG msg = {};
 	while (WM_QUIT != msg.message)
