@@ -9270,11 +9270,19 @@ namespace W3D::MaxTools
 			}
 #endif
 
-			if (obj->ConvertToType(Time, triObjectClassID) != nullptr)
+			if (obj->CanConvertToType(triObjectClassID))
 			{
-				Mesh = ((TriObject*)obj->ConvertToType(Time, triObjectClassID))->mesh;
-				ValidMesh = true;
-				Initialize();
+				TriObject* tri = (TriObject*)obj->ConvertToType(Time, triObjectClassID);
+				if (tri != nullptr)
+				{
+					Mesh = tri->mesh;
+					ValidMesh = true;
+					Initialize();
+					if (tri != obj)
+					{
+						tri->DeleteThis();
+					}
+				}
 			}
 		}
 
@@ -9471,6 +9479,10 @@ namespace W3D::MaxTools
 			Object* o = node->EvalWorldState(time).obj;
 			TriObject* tri = (TriObject*)o->ConvertToType(time, triObjectClassID);
 			Mesh m(tri->GetMesh());
+			if (tri != o)
+			{
+				tri->DeleteThis();
+			}
 			DWORD color = node->GetWireColor();
 
 			if (!m.getNumVerts())
@@ -9494,15 +9506,14 @@ namespace W3D::MaxTools
 
 #ifndef W3X
 			char newname[128];
-			memset(newname, 0, 128);
-
 			if (containername && containername[0])
 			{
-				strcat(newname, containername);
-				strcat(newname, ".");
+				_snprintf_s(newname, _TRUNCATE, "%s.%s", containername, name);
 			}
-
-			strcat(newname, name);
+			else
+			{
+				_snprintf_s(newname, _TRUNCATE, "%s", name);
+			}
 			strncpy(Box.Name, newname, W3D_NAME_LEN * 2);
 #else
 			strncpy(Box.Name, name, W3D_NAME_LEN * 2);
@@ -9647,9 +9658,17 @@ namespace W3D::MaxTools
 		{
 			Object* o = node->EvalWorldState(Time).obj;
 
-			if (o->ConvertToType(Time, triObjectClassID))
+			if (o->CanConvertToType(triObjectClassID))
 			{
-				ValidMesh = true;
+				TriObject* tri = (TriObject*)o->ConvertToType(Time, triObjectClassID);
+				if (tri != nullptr)
+				{
+					ValidMesh = true;
+					if (tri != o)
+					{
+						tri->DeleteThis();
+					}
+				}
 			}
 		}
 
