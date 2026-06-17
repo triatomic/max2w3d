@@ -189,6 +189,7 @@ namespace W3D::MaxTools
 #ifndef W3X
 		SetCheckBox(root, IDC_DEDUPLICATE, m_Settings.MeshDeduplication);
 		SetCheckBox(root, IDC_NEWAABTREE, m_Settings.NewAABTree);
+		SetCheckBox(root, IDC_RENEGADE_HACK, m_Settings.RenegadePassHack);
 #endif
 		SetCheckBox(root, IDC_MIKKTSPACE, m_Settings.MikkTSpace);
 		SetCheckBox(root, IDC_USE_EXT_SKELETON, m_Settings.UseExistingSkeleton);
@@ -269,6 +270,9 @@ namespace W3D::MaxTools
 			return TRUE;
 		case IDC_NEWAABTREE:
 			m_Settings.NewAABTree = IsDlgButtonChecked(m_ActiveTab, controlID);
+			return TRUE;
+		case IDC_RENEGADE_HACK:
+			m_Settings.RenegadePassHack = IsDlgButtonChecked(m_ActiveTab, controlID);
 			return TRUE;
 #endif
 		case IDC_MIKKTSPACE:

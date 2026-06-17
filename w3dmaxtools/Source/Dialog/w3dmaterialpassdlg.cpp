@@ -9,17 +9,49 @@ namespace
 {
 	void UpdateTexmapButtonText(ICustButton* button, IParamBlock2& pb, W3D::MaxTools::W3DMaterialParamID param)
 	{
-		BitmapTex* tm = static_cast<BitmapTex*>(pb.GetTexmap(enum_to_value(param)));
-		if (tm && tm->GetMapName())
+		// Stage slots accept any Texmap, but only BitmapTex has a GetMapName().
+		// Unconditionally static_cast'ing was unsafe — connecting a non-bitmap
+		// (Color Correction, Output, Composite, Mix, …) and then triggering a
+		// refresh would call GetMapName via the wrong vtable and crash. Gate on
+		// the actual class id; for non-bitmaps fall back to the texmap's display
+		// name (what Max shows in its own slate / texmap browser).
+		//
+		// The whole body is wrapped in try/catch because we get called from
+		// REFMSG_CHANGE handlers that fire while a bitmap is mid-edit (e.g.
+		// mono channel flipping between RGB/Alpha). In that transient state
+		// GetMapName / SplitPathFile / SetText can throw — and an unwound C++
+		// exception out of NotifyRefChanged into Max's notification dispatch
+		// is what was crashing the host.
+		if (button == nullptr) return;
+		try
 		{
-			MSTR path;
-			MSTR fname;
-			SplitPathFile(tm->GetMapName(), &path, &fname);
-			button->SetText(fname.data());
+			Texmap* base = pb.GetTexmap(enum_to_value(param));
+			if (base == nullptr)
+			{
+				button->SetText(_T("None"));
+				return;
+			}
+			if (base->ClassID() == Class_ID(BMTEX_CLASS_ID, 0))
+			{
+				BitmapTex* bm = static_cast<BitmapTex*>(base);
+				const MCHAR* mapName = bm->GetMapName();
+				if (mapName && *mapName)
+				{
+					MSTR path, fname;
+					SplitPathFile(mapName, &path, &fname);
+					button->SetText(fname.data());
+					return;
+				}
+			}
+			// Non-bitmap or empty bitmap — fall back to the texmap's display name.
+			MSTR name;
+			base->GetClassName(name, false);
+			button->SetText(name.data());
 		}
-		else
+		catch (...)
 		{
-			button->SetText(_T("None"));
+			// Best-effort fallback; don't propagate into Max's REFMSG dispatcher.
+			try { button->SetText(_T("…")); } catch (...) {}
 		}
 	}
 
@@ -715,6 +747,29 @@ namespace W3D::MaxTools
 	{
 		m_Stage0Display->SetCheck(FALSE);
 		m_Stage1Display->SetCheck(FALSE);
+	}
+
+	void W3DMaterialPassDlgProc::TexturesTab::RefreshStageUI(int stageIdx)
+	{
+		const bool isStage1 = stageIdx != 0;
+		ICustButton* button = isStage1 ? m_Stage1TextureMap : m_Stage0TextureMap;
+		HWND enabledCtrl = isStage1 ? m_Stage1TextureEnabled : m_Stage0TextureEnabled;
+		const W3DMaterialParamID texParam = isStage1 ? W3DMaterialParamID::Stage1TextureMap : W3DMaterialParamID::Stage0TextureMap;
+		const W3DMaterialParamID enabledParam = isStage1 ? W3DMaterialParamID::Stage1TextureEnabled : W3DMaterialParamID::Stage0TextureEnabled;
+
+		UpdateTexmapButtonText(button, *m_Dialog.m_ParamBlock, texParam);
+		const BOOL enabled = m_Dialog.m_ParamBlock->GetInt(enum_to_value(enabledParam));
+		SetCheckBox(GetParent(enabledCtrl), GetDlgCtrlID(enabledCtrl), enabled);
+		if (isStage1)
+			SetStage1Enabled(enabled != FALSE);
+		else
+			SetStage0Enabled(enabled != FALSE);
+	}
+
+	void W3DMaterialPassDlgProc::RefreshStageUI(int stageIdx)
+	{
+		if (m_Tabs[2])
+			static_cast<TexturesTab*>(m_Tabs[2].get())->RefreshStageUI(stageIdx);
 	}
 
 	BOOL CALLBACK W3DMaterialPassDlgProc::TexturesTab::DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam)

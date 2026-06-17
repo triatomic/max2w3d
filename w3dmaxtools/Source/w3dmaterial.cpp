@@ -209,255 +209,143 @@ namespace W3D::MaxTools
 		p_end
 	);
 
+	// Per-pass schema. The internal-name SUFFIX argument disambiguates the param names
+	// across pass blocks at the MAXScript binding layer (PassOne uses an empty suffix to
+	// preserve the existing public scripting surface; pass 2/3/4 use _p2/_p3/_p4).
+	// ParamID, TYPE_xxx, and defaults are identical across all four passes, so the
+	// shared pass dialog (IDD_W3D_MAT_PASS) and all C++ GetValue/SetValue call sites
+	// keep working without modification, and on-disk persistence (which keys on ParamID)
+	// is unaffected for existing scenes.
+#define W3DMAT_PASS_PARAMS(SUFFIX) \
+		/*Vertex Tab*/ \
+		enum_to_value(W3DMaterialParamID::AmbientColour), _T("ambientcolour") SUFFIX, TYPE_RGBA, 0, IDS_AMBIENT_COLOUR, \
+		p_default, RGBA(1.0f, 1.0f, 1.0f), p_end, \
+		enum_to_value(W3DMaterialParamID::DiffuseColour), _T("diffusecolour") SUFFIX, TYPE_RGBA, 0, IDS_DIFFUSE_COLOUR, \
+		p_default, RGBA(1.0f, 1.0f, 1.0f), p_end, \
+		enum_to_value(W3DMaterialParamID::SpecularColour), _T("specularcolour") SUFFIX, TYPE_RGBA, 0, IDS_SPECULAR_COLOUR, \
+		p_default, RGBA(0.0f, 0.0f, 0.0f), p_end, \
+		enum_to_value(W3DMaterialParamID::EmissiveColour), _T("emissivecolour") SUFFIX, TYPE_RGBA, 0, IDS_EMISSIVE_COLOUR, \
+		p_default, RGBA(0.0f, 0.0f, 0.0f), p_end, \
+		enum_to_value(W3DMaterialParamID::SpecularToDiffuse), _T("speculartodiffuse") SUFFIX, TYPE_BOOL, 0, IDS_SPECULAR_TO_DIFFUSE, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Opacity), _T("opacity") SUFFIX, TYPE_FLOAT, 0, IDS_OPACITY, \
+		p_range, 0.0f, 1.0f, p_default, 1.0f, p_end, \
+		enum_to_value(W3DMaterialParamID::Translucency), _T("translucency") SUFFIX, TYPE_FLOAT, 0, IDS_TRANSLUCENCY, \
+		p_range, 0.0f, 1.0f, p_default, 0.0f, p_end, \
+		enum_to_value(W3DMaterialParamID::Shininess), _T("shininess") SUFFIX, TYPE_FLOAT, 0, IDS_SHININESS, \
+		p_range, 0.0f, 1.0f, p_default, 1.0f, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0Mapping), _T("stage0mapping") SUFFIX, TYPE_INT, 0, IDS_STAGE_0_MAPPING, \
+		p_range, 0, enum_to_value(W3DMaterialMappingType::Num), p_default, 0, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0MappingArgs), _T("stage0mappingargs") SUFFIX, TYPE_STRING, 0, IDS_STAGE_0_MAPPING, \
+		p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0MappingUVChannel), _T("stage0mappinguvchannel") SUFFIX, TYPE_INT, 0, IDS_STAGE_0_MAPPING_UV_CHANNEL, \
+		p_default, 1, p_range, 1, 99, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1Mapping), _T("stage1mapping") SUFFIX, TYPE_INT, 0, IDS_STAGE_1_MAPPING, \
+		p_range, 0, enum_to_value(W3DMaterialMappingType::Num), p_default, 0, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1MappingArgs), _T("stage1mappingargs") SUFFIX, TYPE_STRING, 0, IDS_STAGE_1_MAPPING, \
+		p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1MappingUVChannel), _T("stage1mappinguvchannel") SUFFIX, TYPE_INT, 0, IDS_STAGE_1_MAPPING_UV_CHANNEL, \
+		p_default, 1, p_range, 1, 99, p_end, \
+		/*Shader Tab*/ \
+		enum_to_value(W3DMaterialParamID::BlendMode), _T("blendmode") SUFFIX, TYPE_INT, 0, IDS_BLEND_MODE, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialBlendMode::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::CustomSrcMode), _T("blendmodesrc") SUFFIX, TYPE_INT, 0, IDS_BLEND_MODE_SRC, \
+		p_default, 1, p_range, 0, enum_to_value(W3DMaterialBlendModeSrcType::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::CustomDestMode), _T("blendmodedest") SUFFIX, TYPE_INT, 0, IDS_BLEND_MODE_DEST, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialBlendModeDestType::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::BlendWriteZBuffer), _T("customblendwritezbuffer") SUFFIX, TYPE_BOOL, 0, IDS_BLEND_WRITE_Z_BUFFER, \
+		p_default, true, p_end, \
+		enum_to_value(W3DMaterialParamID::AlphaTest), _T("alphatest") SUFFIX, TYPE_BOOL, 0, IDS_ALPHA_TEST, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::PriGradient), _T("prigradient") SUFFIX, TYPE_INT, 0, IDS_PRIMARY_GRADIENT, \
+		p_default, enum_to_value(W3DMaterialPrimaryGradientMode::Modulate), \
+		p_range, 0, enum_to_value(W3DMaterialPrimaryGradientMode::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::SecGradient), _T("secgradient") SUFFIX, TYPE_BOOL, 0, IDS_SECONDARY_GRADIENT, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::DepthCmp), _T("depthcmp") SUFFIX, TYPE_INT, 0, IDS_DEPTH_COMPARISON, \
+		p_default, enum_to_value(W3DMaterialDepthCompMode::PassLEqual), \
+		p_range, 0, enum_to_value(W3DMaterialDepthCompMode::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::DetailColour), _T("detailcolour") SUFFIX, TYPE_INT, 0, IDS_DETAIL_COLOUR, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialDetailColourMode::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::DetailAlpha), _T("detailalpha") SUFFIX, TYPE_INT, 0, IDS_DETAIL_ALPHA, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialDetailAlphaMode::Num), p_end, \
+		/*Textures Tab - Stage 0*/ \
+		enum_to_value(W3DMaterialParamID::Stage0TextureEnabled), _T("stage0texenabled") SUFFIX, TYPE_BOOL, 0, IDS_STAGE_0_TEXTURE, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0TextureMap), _T("stage0texturemap") SUFFIX, TYPE_TEXMAP, 0, IDS_STAGE_0_TEXTURE, \
+		p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0Publish), _T("stage0publish") SUFFIX, TYPE_BOOL, 0, IDS_PUBLISH, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0Resize), _T("stage0resize") SUFFIX, TYPE_BOOL, 0, IDS_RESIZE, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0Display), _T("stage0display") SUFFIX, TYPE_BOOL, 0, IDS_DISPLAY, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0ClampU), _T("stage0clampu") SUFFIX, TYPE_BOOL, 0, IDS_CLAMP_U, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0ClampV), _T("stage0clampv") SUFFIX, TYPE_BOOL, 0, IDS_CLAMP_V, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0NoLOD), _T("stage0nolod") SUFFIX, TYPE_BOOL, 0, IDS_NO_LOD, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0Frames), _T("stage0frames") SUFFIX, TYPE_INT, 0, IDS_ANIM_FRAMES, \
+		p_default, 1, p_range, 0, 999, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0FPS), _T("stage0fps") SUFFIX, TYPE_FLOAT, 0, IDS_ANIM_FPS, \
+		p_default, 15.0f, p_range, 0.0f, 60.0f, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0AnimMode), _T("stage0animmode") SUFFIX, TYPE_INT, 0, IDS_ANIM_MODE, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialTextureAnimMode::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0PassHint), _T("stage0passhint") SUFFIX, TYPE_INT, 0, IDS_PASS_HINT, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialTexturePassHint::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::Stage0AlphaBitmap), _T("stage0alphabitmap") SUFFIX, TYPE_BOOL, 0, IDS_ALPHA_BITMAP, \
+		p_default, false, p_end, \
+		/*Textures Tab - Stage 1*/ \
+		enum_to_value(W3DMaterialParamID::Stage1TextureEnabled), _T("stage1texenabled") SUFFIX, TYPE_BOOL, 0, IDS_STAGE_1_TEXTURE, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1TextureMap), _T("stage1texturemap") SUFFIX, TYPE_TEXMAP, 0, IDS_STAGE_1_TEXTURE, \
+		p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1Publish), _T("stage1publish") SUFFIX, TYPE_BOOL, 0, IDS_PUBLISH, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1Resize), _T("stage1resize") SUFFIX, TYPE_BOOL, 0, IDS_RESIZE, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1Display), _T("stage1display") SUFFIX, TYPE_BOOL, 0, IDS_DISPLAY, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1ClampU), _T("stage1clampu") SUFFIX, TYPE_BOOL, 0, IDS_CLAMP_U, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1ClampV), _T("stage1clampv") SUFFIX, TYPE_BOOL, 0, IDS_CLAMP_V, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1NoLOD), _T("stage1nolod") SUFFIX, TYPE_BOOL, 0, IDS_NO_LOD, \
+		p_default, false, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1Frames), _T("stage1frames") SUFFIX, TYPE_INT, 0, IDS_ANIM_FRAMES, \
+		p_default, 1, p_range, 0, 999, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1FPS), _T("stage1fps") SUFFIX, TYPE_FLOAT, 0, IDS_ANIM_FPS, \
+		p_default, 15.0f, p_range, 0.0f, 60.0f, p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1AnimMode), _T("stage1animmode") SUFFIX, TYPE_INT, 0, IDS_ANIM_MODE, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialTextureAnimMode::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1PassHint), _T("stage1passhint") SUFFIX, TYPE_INT, 0, IDS_PASS_HINT, \
+		p_default, 0, p_range, 0, enum_to_value(W3DMaterialTexturePassHint::Num), p_end, \
+		enum_to_value(W3DMaterialParamID::Stage1AlphaBitmap), _T("stage1alphabitmap") SUFFIX, TYPE_BOOL, 0, IDS_ALPHA_BITMAP, \
+		p_default, false, p_end
+
 	static ParamBlockDesc2 s_W3DMatPassOneParamBlock(enum_to_value(W3DMaterialBlockID::PassOne), _T("passone"), 0, W3DMaterialClassDesc::Instance(),
 		P_AUTO_CONSTRUCT, enum_to_value(W3DMaterialRefID::PassOneBlock),
-
-		//params
-
-		//Vertex Tab
-		enum_to_value(W3DMaterialParamID::AmbientColour), _T("ambientcolour"), TYPE_RGBA, 0, IDS_AMBIENT_COLOUR,
-		p_default, RGBA(1.0f, 1.0f, 1.0f),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::DiffuseColour), _T("diffusecolour"), TYPE_RGBA, 0, IDS_DIFFUSE_COLOUR,
-		p_default, RGBA(1.0f, 1.0f, 1.0f),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::SpecularColour), _T("specularcolour"), TYPE_RGBA, 0, IDS_SPECULAR_COLOUR,
-		p_default, RGBA(0.0f, 0.0f, 0.0f),
-		p_end,
-			
-		enum_to_value(W3DMaterialParamID::EmissiveColour), _T("emissivecolour"), TYPE_RGBA, 0, IDS_EMISSIVE_COLOUR,
-		p_default, RGBA(0.0f, 0.0f, 0.0f),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::SpecularToDiffuse), _T("speculartodiffuse"), TYPE_BOOL, 0, IDS_SPECULAR_TO_DIFFUSE,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Opacity), _T("opacity"), TYPE_FLOAT, 0, IDS_OPACITY,
-		p_range, 0.0f, 1.0f,
-		p_default, 1.0f,
-		p_end,
-			
-		enum_to_value(W3DMaterialParamID::Translucency), _T("translucency"), TYPE_FLOAT, 0, IDS_TRANSLUCENCY,
-		p_range, 0.0f, 1.0f,
-		p_default, 0.0f,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Shininess), _T("shininess"), TYPE_FLOAT, 0, IDS_SHININESS,
-		p_range, 0.0f, 1.0f,
-		p_default, 1.0f,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0Mapping), _T("stage0mapping"), TYPE_INT, 0, IDS_STAGE_0_MAPPING,
-		p_range, 0, enum_to_value(W3DMaterialMappingType::Num),
-		p_default, 0,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0MappingArgs), _T("stage0mappingargs"), TYPE_STRING, 0, IDS_STAGE_0_MAPPING,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0MappingUVChannel), _T("stage0mappinguvchannel"), TYPE_INT, 0, IDS_STAGE_0_MAPPING_UV_CHANNEL,
-		p_default, 1,
-		p_range, 1, 99,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1Mapping), _T("stage1mapping"), TYPE_INT, 0, IDS_STAGE_1_MAPPING,
-		p_range, 0, enum_to_value(W3DMaterialMappingType::Num),
-		p_default, 0,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1MappingArgs), _T("stage1mappingargs"), TYPE_STRING, 0, IDS_STAGE_1_MAPPING,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1MappingUVChannel), _T("stage1mappinguvchannel"), TYPE_INT, 0, IDS_STAGE_1_MAPPING_UV_CHANNEL,
-		p_default, 1,
-		p_range, 1, 99,
-		p_end,
-
-		//Shader Tab
-		enum_to_value(W3DMaterialParamID::BlendMode), _T("blendmode"), TYPE_INT, 0, IDS_BLEND_MODE,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialBlendMode::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::CustomSrcMode), _T("blendmodesrc"), TYPE_INT, 0, IDS_BLEND_MODE_SRC,
-		p_default, 1,
-		p_range, 0, enum_to_value(W3DMaterialBlendModeSrcType::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::CustomDestMode), _T("blendmodedest"), TYPE_INT, 0, IDS_BLEND_MODE_DEST,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialBlendModeDestType::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::BlendWriteZBuffer), _T("customblendwritezbuffer"), TYPE_BOOL, 0, IDS_BLEND_WRITE_Z_BUFFER,
-		p_default, true,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::AlphaTest), _T("alphatest"), TYPE_BOOL, 0, IDS_ALPHA_TEST,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::PriGradient), _T("prigradient"), TYPE_INT, 0, IDS_PRIMARY_GRADIENT,
-		p_default, enum_to_value(W3DMaterialPrimaryGradientMode::Modulate),
-		p_range, 0, enum_to_value(W3DMaterialPrimaryGradientMode::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::SecGradient), _T("secgradient"), TYPE_BOOL, 0, IDS_SECONDARY_GRADIENT,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::DepthCmp), _T("depthcmp"), TYPE_INT, 0, IDS_DEPTH_COMPARISON,
-		p_default, enum_to_value(W3DMaterialDepthCompMode::PassLEqual),
-		p_range, 0, enum_to_value(W3DMaterialDepthCompMode::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::DetailColour), _T("detailcolour"), TYPE_INT, 0, IDS_DETAIL_COLOUR,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialDetailColourMode::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::DetailAlpha), _T("detailalpha"), TYPE_INT, 0, IDS_DETAIL_ALPHA,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialDetailAlphaMode::Num),
-		p_end,
-
-		//Textures Tab - Stage 0
-		enum_to_value(W3DMaterialParamID::Stage0TextureEnabled), _T("stage0texenabled"), TYPE_BOOL, 0, IDS_STAGE_0_TEXTURE,
-		p_default, false,
-		p_end,
-			
-		enum_to_value(W3DMaterialParamID::Stage0TextureMap), _T("stage0texturemap"), TYPE_TEXMAP, 0, IDS_STAGE_0_TEXTURE,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0Publish), _T("stage0publish"), TYPE_BOOL, 0, IDS_PUBLISH,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0Resize), _T("stage0resize"), TYPE_BOOL, 0, IDS_RESIZE,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0Display), _T("stage0display"), TYPE_BOOL, 0, IDS_DISPLAY,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0ClampU), _T("stage0clampu"), TYPE_BOOL, 0, IDS_CLAMP_U,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0ClampV), _T("stage0clampv"), TYPE_BOOL, 0, IDS_CLAMP_V,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0NoLOD), _T("stage0nolod"), TYPE_BOOL, 0, IDS_NO_LOD,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0Frames), _T("stage0frames"), TYPE_INT, 0, IDS_ANIM_FRAMES,
-		p_default, 1,
-		p_range, 0, 999,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0FPS), _T("stage0fps"), TYPE_FLOAT, 0, IDS_ANIM_FPS,
-		p_default, 15.0f,
-		p_range, 0.0f, 60.0f,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0AnimMode), _T("stage0animmode"), TYPE_INT, 0, IDS_ANIM_MODE,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialTextureAnimMode::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0PassHint), _T("stage0passhint"), TYPE_INT, 0, IDS_PASS_HINT,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialTexturePassHint::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage0AlphaBitmap), _T("stage0alphabitmap"), TYPE_BOOL, 0, IDS_ALPHA_BITMAP,
-		p_default, false,
-		p_end,
-
-		//Textures Tab - Stage 1
-		enum_to_value(W3DMaterialParamID::Stage1TextureEnabled), _T("stage1texenabled"), TYPE_BOOL, 0, IDS_STAGE_1_TEXTURE,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1TextureMap), _T("stage1texturemap"), TYPE_TEXMAP, 0, IDS_STAGE_1_TEXTURE,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1Publish), _T("stage1publish"), TYPE_BOOL, 0, IDS_PUBLISH,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1Resize), _T("stage1resize"), TYPE_BOOL, 0, IDS_RESIZE,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1Display), _T("stage1display"), TYPE_BOOL, 0, IDS_DISPLAY,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1ClampU), _T("stage1clampu"), TYPE_BOOL, 0, IDS_CLAMP_U,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1ClampV), _T("stage1clampv"), TYPE_BOOL, 0, IDS_CLAMP_V,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1NoLOD), _T("stage1nolod"), TYPE_BOOL, 0, IDS_NO_LOD,
-		p_default, false,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1Frames), _T("stage1frames"), TYPE_INT, 0, IDS_ANIM_FRAMES,
-		p_default, 1,
-		p_range, 0, 999,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1FPS), _T("stage1fps"), TYPE_FLOAT, 0, IDS_ANIM_FPS,
-		p_default, 15.0f,
-		p_range, 0.0f, 60.0f,
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1AnimMode), _T("stage1animmode"), TYPE_INT, 0, IDS_ANIM_MODE,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialTextureAnimMode::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1PassHint), _T("stage1passhint"), TYPE_INT, 0, IDS_PASS_HINT,
-		p_default, 0,
-		p_range, 0, enum_to_value(W3DMaterialTexturePassHint::Num),
-		p_end,
-
-		enum_to_value(W3DMaterialParamID::Stage1AlphaBitmap), _T("stage1alphabitmap"), TYPE_BOOL, 0, IDS_ALPHA_BITMAP,
-		p_default, false,
-		p_end,
-
+		W3DMAT_PASS_PARAMS(_T("")),
 		p_end
 	);
 
 	static ParamBlockDesc2 s_W3DMatPassTwoParamBlock(enum_to_value(W3DMaterialBlockID::PassTwo), _T("passtwo"), 0, W3DMaterialClassDesc::Instance(),
-		P_AUTO_CONSTRUCT + P_USE_PARAMS, enum_to_value(W3DMaterialRefID::PassTwoBlock),
-
-		//Base
-		&s_W3DMatPassOneParamBlock
+		P_AUTO_CONSTRUCT, enum_to_value(W3DMaterialRefID::PassTwoBlock),
+		W3DMAT_PASS_PARAMS(_T("_p2")),
+		p_end
 	);
 
 	static ParamBlockDesc2 s_W3DMatPassThreeParamBlock(enum_to_value(W3DMaterialBlockID::PassThree), _T("passthree"), 0, W3DMaterialClassDesc::Instance(),
-		P_AUTO_CONSTRUCT + P_USE_PARAMS, enum_to_value(W3DMaterialRefID::PassThreeBlock),
-
-		//Base
-		&s_W3DMatPassOneParamBlock
+		P_AUTO_CONSTRUCT, enum_to_value(W3DMaterialRefID::PassThreeBlock),
+		W3DMAT_PASS_PARAMS(_T("_p3")),
+		p_end
 	);
 
 	static ParamBlockDesc2 s_W3DMatPassFourParamBlock(enum_to_value(W3DMaterialBlockID::PassFour), _T("passfour"), 0, W3DMaterialClassDesc::Instance(),
-		P_AUTO_CONSTRUCT + P_USE_PARAMS, enum_to_value(W3DMaterialRefID::PassFourBlock),
-
-		//Base
-		&s_W3DMatPassOneParamBlock
+		P_AUTO_CONSTRUCT, enum_to_value(W3DMaterialRefID::PassFourBlock),
+		W3DMAT_PASS_PARAMS(_T("_p4")),
+		p_end
 	);
 		
 	static const std::array<ParamBlockDesc2*, 4> s_W3DMatPassBlocks { &s_W3DMatPassOneParamBlock, &s_W3DMatPassTwoParamBlock, &s_W3DMatPassThreeParamBlock, &s_W3DMatPassFourParamBlock };
@@ -791,6 +679,15 @@ namespace W3D::MaxTools
 				}
 			}
 		}
+
+		NotifyDependents(FOREVER, PART_ALL, REFMSG_SUBANIM_STRUCTURE_CHANGED);
+
+		// REFMSG_SUBANIM_STRUCTURE_CHANGED makes Max re-evaluate which sub-texmap is the
+		// "active" one for viewport / preview rendering. If we don't re-call SetActiveTexmap,
+		// the previously active texmap pointer (Pass 1's bitmap) can be displaced by Max's
+		// re-walk of the now-larger sub-texmap list, leaving the preview/viewport rendering
+		// whichever texmap (often the highest-indexed empty pass) Max picks by default.
+		InvalidateDisplayTexture();
 	}
 
 	void W3DMaterial::ClearDisplayFlags()
@@ -1025,12 +922,12 @@ namespace W3D::MaxTools
 
 	TSTR W3DMaterial::SubAnimName(int i, bool localized)
 	{
-		return TSTR(_T(""));
+		return GetSubTexmapSlotName(i, localized);
 	}
 
 	Animatable* W3DMaterial::SubAnim(int i)
 	{
-		return nullptr;
+		return GetSubTexmap(i);
 	}
 
 	RefResult W3DMaterial::NotifyRefChanged(const Interval& /*changeInt*/, RefTargetHandle hTarget,
@@ -1059,6 +956,49 @@ namespace W3D::MaxTools
 					{
 						ParamID changing_param = m_Passes[i].ParamBlock->LastNotifyParamID();
 						s_W3DMatPassBlocks[i]->InvalidateUI(changing_param);
+
+						const ParamID stage0Tex = enum_to_value(W3DMaterialParamID::Stage0TextureMap);
+						const ParamID stage1Tex = enum_to_value(W3DMaterialParamID::Stage1TextureMap);
+						const ParamID stage0En = enum_to_value(W3DMaterialParamID::Stage0TextureEnabled);
+						const ParamID stage1En = enum_to_value(W3DMaterialParamID::Stage1TextureEnabled);
+						// IsWindow guard: when the Material Editor closes the slot, Max
+						// destroys the master ParamDlg (and our sub-pass dialogs) but
+						// doesn't call back into the Mtl, leaving m_Passes[i].Dialog
+						// dangling. A stale REFMSG_CHANGE forwarded from a still-open
+						// bitmap editor (e.g. user changes mono channel output on a
+						// previously-assigned bitmap) would otherwise dereference that
+						// freed pointer and crash. Verify the editor HWND first.
+						//
+						// The try/catch handles the second crash mode: with the editor
+						// still OPEN, a bitmap mid-channel-flip can have GetMapName()
+						// pointing at memory Max is rebuilding. Downstream calls (e.g.
+						// SplitPathFile / button->SetText paint cycles) sporadically
+						// throw a C++ exception in that window. The refresh is purely
+						// cosmetic (updates the stage button caption) — the exception
+						// gets swallowed and the caption updates on the next valid
+						// REFMSG_CHANGE, instead of taking Max down.
+						if (m_Passes[i].Dialog &&
+							m_MtlDlgHandle && IsWindow(m_MtlDlgHandle) &&
+							(changing_param == stage0Tex || changing_param == stage1Tex ||
+							 changing_param == stage0En || changing_param == stage1En))
+						{
+							try
+							{
+								IParamMap2* map = m_Passes[i].Dialog->GetMap();
+								if (map)
+								{
+									if (auto* userDlg = static_cast<W3DMaterialPassDlgProc*>(map->GetUserDlgProc()))
+									{
+										const int stageIdx = (changing_param == stage1Tex || changing_param == stage1En) ? 1 : 0;
+										userDlg->RefreshStageUI(stageIdx);
+									}
+								}
+							}
+							catch (...)
+							{
+								// Swallow — the next REFMSG_CHANGE will pick up the correct state.
+							}
+						}
 					}
 				}
 			}
@@ -1109,14 +1049,32 @@ namespace W3D::MaxTools
 		int passIdx = i / 2;
 		if (passIdx >= 0 && passIdx < m_Passes.size())
 		{
+			const bool isStage1 = (i % 2) != 0;
 			W3DMaterialPass& pass = m_Passes[passIdx];
-			pass.ParamBlock->SetValue(enum_to_value((i % 2) != 0 ? W3DMaterialParamID::Stage1TextureMap : W3DMaterialParamID::Stage0TextureMap), 0, m);
+			pass.ParamBlock->SetValue(enum_to_value(isStage1 ? W3DMaterialParamID::Stage1TextureMap : W3DMaterialParamID::Stage0TextureMap), 0, m);
+
+			if (m != nullptr)
+			{
+				pass.ParamBlock->SetValue(enum_to_value(isStage1 ? W3DMaterialParamID::Stage1TextureEnabled : W3DMaterialParamID::Stage0TextureEnabled), 0, TRUE);
+			}
+			else
+			{
+				pass.ParamBlock->SetValue(enum_to_value(isStage1 ? W3DMaterialParamID::Stage1TextureEnabled : W3DMaterialParamID::Stage0TextureEnabled), 0, FALSE);
+				pass.ParamBlock->SetValue(enum_to_value(isStage1 ? W3DMaterialParamID::Stage1Display : W3DMaterialParamID::Stage0Display), 0, FALSE);
+			}
 		}
 	}
 
-	TSTR W3DMaterial::GetSubTexmapSlotName(int /*i*/, bool localized)
+	TSTR W3DMaterial::GetSubTexmapSlotName(int i, bool /*localized*/)
 	{
-		return _T("");
+		int passIdx = i / 2;
+		int stageIdx = i % 2;
+		if (passIdx < 0 || passIdx >= static_cast<int>(m_Passes.size()))
+			return _T("");
+
+		TSTR name;
+		name.printf(_T("Pass %d Stage %d"), passIdx + 1, stageIdx);
+		return name;
 	}
 
 	TSTR W3DMaterial::GetSubTexmapTVName(int i)
@@ -1464,6 +1422,23 @@ namespace W3D::MaxTools
 			for (int i = 0; i < NumActivePasses(); i++)
 			{
 				W3DMaterialPass &pass = GetMaterialPass(i);
+
+				// Skip passes with no live texture stage. Same reason as in the exporter:
+				// PassTwo's defaults (Stage*Enabled=false, srcBlend=One, destBlend=Zero,
+				// PriGradient=Modulate) would otherwise produce opaque white that overdraws
+				// the textured Pass 0, leaving the rendered preview / Max renderer output
+				// blank for any artist who bumps PassCount without authoring stage 1.
+				const bool stage0Live =
+					pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage0TextureEnabled)) &&
+					GetSubTexmap(i * 2) != nullptr;
+				const bool stage1Live =
+					pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage1TextureEnabled)) &&
+					GetSubTexmap(i * 2 + 1) != nullptr;
+				if (!stage0Live && !stage1Live)
+				{
+					continue;
+				}
+
 				Color ambient = sc.ambientLight;
 				Color diffuse(0, 0, 0);
 				Color specular(0, 0, 0);

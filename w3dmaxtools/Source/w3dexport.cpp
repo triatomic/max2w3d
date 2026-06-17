@@ -4,6 +4,7 @@
 #include <meshnormalspec.h>
 #include <maxheapdirect.h>
 #include "w3dexport.h"
+#include "w3dskin.h"   // Phase 8: detect WWSkin Binding alongside native Skin
 #include "EulerAngles.h"
 #include "Dialog/w3dexportdlg.h"
 #include "BufferedFileClass.h"
@@ -721,6 +722,10 @@ namespace W3D::MaxTools
 #ifndef W3X
 	std::unordered_map<Object*, StringClass> ObjectMap;
 	bool MeshDeduplication = false;
+	// Mirror of W3DExportSettings::RenegadePassHack for the duration of an export.
+	// true => keep every authored material pass (original Westwood behaviour);
+	// false (default) => skip empty trailing passes.
+	bool RenegadePassHack = false;
 #endif
 
 	class HierarchySave
@@ -927,14 +932,19 @@ namespace W3D::MaxTools
 				((W3DExportSettings*)chunk->data)->AnimFramesEnd = Int->GetAnimRange().End() / GetTicksPerFrame();
 			}
 
-			if (chunk->length == sizeof(OldW3DExportSettings))
+			// Grow any older, smaller settings layout up to the current struct,
+			// preserving the saved prefix and default-initialising newly-added
+			// trailing fields. This covers OldW3DExportSettings as well as later
+			// additions (e.g. RenegadePassHack) without a fixed per-version check.
+			if (chunk->length < sizeof(W3DExportSettings))
 			{
-				OldW3DExportSettings* data = (OldW3DExportSettings*)chunk->data;
+				void* olddata = chunk->data;
+				size_t oldlen = chunk->length;
 				chunk->length = sizeof(W3DExportSettings);
 				void* alloc = MAX_malloc(chunk->length);
 				chunk->data = new(alloc) W3DExportSettings;
-				memcpy(chunk->data, data, sizeof(OldW3DExportSettings));
-				MAX_free(data);
+				memcpy(chunk->data, olddata, oldlen);
+				MAX_free(olddata);
 			}
 
 			W3DExportSettings* settings = (W3DExportSettings*)chunk->data;
@@ -1020,6 +1030,7 @@ namespace W3D::MaxTools
 				{
 #ifndef W3X
 					MeshDeduplication = m_Settings.MeshDeduplication;
+					RenegadePassHack = m_Settings.RenegadePassHack;
 					ObjectMap.clear();
 #endif
 					LogDataDialogClass::CreateLogDialog(nullptr);
@@ -1218,6 +1229,96 @@ namespace W3D::MaxTools
 		return nullptr;
 	}
 
+	// Phase 8 (WWSkin): the WWSkin Binding modifier lives on the WSM-derived
+	// stack (it's a Space Warp modifier), NOT the OSM stack that FindSkinModifier
+	// walks. So we look there separately. Returns the binding if present.
+	W3D::MaxTools::SkinModifierClass* FindWWSkinModifier(INode* nodePtr)
+	{
+		if (!nodePtr) return nullptr;
+		IDerivedObject* dobj = nodePtr->GetWSMDerivedObject();
+		if (!dobj) return nullptr;
+		const Class_ID wwskinModCID(0x6BAD4898, 0x0D1D6CED);
+		for (int i = 0; i < dobj->NumModifiers(); ++i)
+		{
+			Modifier* mod = dobj->GetModifier(i);
+			if (mod && mod->ClassID() == wwskinModCID)
+				return static_cast<W3D::MaxTools::SkinModifierClass*>(mod);
+		}
+		return nullptr;
+	}
+
+	// Per-vertex skin sampler — abstracts the (bones, weights) query so the
+	// existing export pipeline can read from EITHER Max's native Skin (ISkin)
+	// OR a WWSkin Binding modifier without branching at every callsite.
+	struct SkinSampler
+	{
+		// Native Skin path
+		ISkin*             native       = nullptr;
+		ISkinContextData*  nativeCtx    = nullptr;
+		// WWSkin path
+		W3D::MaxTools::SkinModifierClass* wwskin = nullptr;
+		W3D::MaxTools::SkinDataClass*     wwdata = nullptr;
+
+		bool IsValid() const
+		{
+			return (native && nativeCtx) || (wwskin && wwdata && wwskin->WSMObjectRef);
+		}
+
+		int GetNumAssignedBones(int vid) const
+		{
+			if (native && nativeCtx) return nativeCtx->GetNumAssignedBones(vid);
+			if (wwskin && wwdata && vid < wwdata->VertData.Count())
+			{
+				const auto& inf = wwdata->VertData[vid];
+				int n = 0;
+				if (inf.BoneIdx[0] >= 0) ++n;
+				if (inf.BoneIdx[1] >= 0) ++n;
+				return n;
+			}
+			return 0;
+		}
+
+		float GetBoneWeight(int vid, int k) const
+		{
+			if (native && nativeCtx) return nativeCtx->GetBoneWeight(vid, k);
+			if (wwskin && wwdata && vid < wwdata->VertData.Count())
+			{
+				return wwdata->VertData[vid].BoneWeight[k];
+			}
+			return 0.0f;
+		}
+
+		INode* GetAssignedBone(int vid, int k) const
+		{
+			if (native && nativeCtx)
+				return native->GetBone(nativeCtx->GetAssignedBone(vid, k));
+			if (wwskin && wwdata && vid < wwdata->VertData.Count())
+			{
+				const int boneIdx = wwdata->VertData[vid].BoneIdx[k];
+				if (boneIdx < 0 || boneIdx >= wwskin->WSMObjectRef->Num_Bones()) return nullptr;
+				return wwskin->WSMObjectRef->Get_Bone(boneIdx);
+			}
+			return nullptr;
+		}
+	};
+
+	// Find the SkinDataClass for a node by walking its WSM-derived ModContexts.
+	W3D::MaxTools::SkinDataClass* FindWWSkinData(INode* node, W3D::MaxTools::SkinModifierClass* mod)
+	{
+		if (!node || !mod) return nullptr;
+		IDerivedObject* dobj = node->GetWSMDerivedObject();
+		if (!dobj) return nullptr;
+		for (int i = 0; i < dobj->NumModifiers(); ++i)
+		{
+			if (dobj->GetModifier(i) == mod)
+			{
+				ModContext* mc = dobj->GetModContext(i);
+				return mc ? static_cast<W3D::MaxTools::SkinDataClass*>(mc->localData) : nullptr;
+			}
+		}
+		return nullptr;
+	}
+
 	bool HasSkin(INode* node)
 	{
 		if (node->IsGroupHead())
@@ -1235,7 +1336,9 @@ namespace W3D::MaxTools
 			return false;
 		}
 
-		return FindSkinModifier(node) != nullptr;
+		// Either Max's native Skin OR our WWSkin Binding qualifies the mesh as
+		// skinned for export purposes.
+		return FindSkinModifier(node) != nullptr || FindWWSkinModifier(node) != nullptr;
 	}
 
 	bool IsNormalGeometry(INode* node)
@@ -1387,9 +1490,15 @@ namespace W3D::MaxTools
 	}
 #endif
 
+	bool IsWWSkinObject(INode* node)
+	{
+		Object* obj = node->GetObjectRef();
+		return obj && obj->ClassID() == Class_ID(0x32B37E0C, 0x5A9612E4);
+	}
+
 	bool IsExportBone(INode* node)
 	{
-		if (node->IsGroupHead())
+		if (node->IsGroupHead() || IsWWSkinObject(node))
 		{
 			return false;
 		}
@@ -2176,7 +2285,7 @@ namespace W3D::MaxTools
 
 	bool GetExportGeometry(INode* node)
 	{
-		if (node->IsGroupHead())
+		if (node->IsGroupHead() || IsWWSkinObject(node))
 		{
 			return false;
 		}
@@ -3144,13 +3253,40 @@ namespace W3D::MaxTools
 			void InitFromW3DMaterial(W3DMaterial* mtl)
 			{
 				Reset();
-				PassCount = mtl->NumActivePasses();
 				SurfaceType = mtl->GetSurfaceType();
 				SortLevel = mtl->GetSortLevel();
 
+				// Skip passes that have no enabled texture stage with a valid texmap.
+				// Otherwise an artist who bumps PassCount without authoring stage 1 would emit
+				// an opaque "Texturing Disable, blend One/Zero" pass that overdraws pass 0
+				// and hides the textured (e.g. AlphaTest) result in-engine.
+				//
+				// In the .w3d build this skip is opt-out: ticking "Renegade Hack" in the
+				// export dialog keeps every authored pass, matching the original Westwood
+				// exporter's literal multi-pass output. The .w3x build always skips.
+				int outPass = 0;
 				for (int i = 0; i < mtl->NumActivePasses(); i++)
 				{
 					W3DMaterialPass& pass = mtl->GetMaterialPass(i);
+
+					const bool stage0Live =
+						pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage0TextureEnabled)) &&
+						mtl->GetSubTexmap(2 * i + 0) != nullptr;
+					const bool stage1Live =
+						pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::Stage1TextureEnabled)) &&
+						mtl->GetSubTexmap(2 * i + 1) != nullptr;
+					if (!stage0Live && !stage1Live)
+					{
+#ifdef W3X
+						continue;
+#else
+						if (!RenegadePassHack)
+						{
+							continue;
+						}
+#endif
+					}
+
 					W3dShaderStruct shader;
 					shader.DepthCompare = pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::DepthCmp));
 					shader.DepthMask = pass.ParamBlock->GetInt(enum_to_value(W3DMaterialParamID::BlendWriteZBuffer));
@@ -3391,20 +3527,23 @@ namespace W3D::MaxTools
 							tex.SetTextureInfo(&texinfo);
 						}
 
-						SetTexture(&tex, i, j);
+						SetTexture(&tex, outPass, j);
 						shader.Texturing = W3DSHADER_TEXTURING_ENABLE;
-						UVSources[i][j] = pass.ParamBlock->GetInt(enum_to_value(j ? W3DMaterialParamID::Stage1MappingUVChannel : W3DMaterialParamID::Stage0MappingUVChannel));
+						UVSources[outPass][j] = pass.ParamBlock->GetInt(enum_to_value(j ? W3DMaterialParamID::Stage1MappingUVChannel : W3DMaterialParamID::Stage0MappingUVChannel));
 						StringClass str2 = pass.ParamBlock->GetStr(enum_to_value(j ? W3DMaterialParamID::Stage1MappingArgs : W3DMaterialParamID::Stage0MappingArgs));
 
 						if (str2.Get_Length())
 						{
-							SetMapperArgs(str2, i, j);
+							SetMapperArgs(str2, outPass, j);
 						}
 					}
 
-					SetShader(&shader, i);
-					SetVertexMaterial(&mat, i);
+					SetShader(&shader, outPass);
+					SetVertexMaterial(&mat, outPass);
+					++outPass;
 				}
+
+				PassCount = outPass;
 			}
 
 //#ifdef W3X
@@ -7509,17 +7648,26 @@ namespace W3D::MaxTools
 			}
 #endif
 
+			// Phase 8: detect either native Skin OR WWSkin Binding. Native Skin
+			// takes precedence if both are present (matches expectations of pre-
+			// WWSkin scenes). The SkinSampler abstracts the per-vertex query.
 			Modifier* skinMod = FindSkinModifier(Node);
-			ISkin* skin = nullptr;
-			ISkinContextData* context = nullptr;
+			SkinSampler sampler;
 
 			if (skinMod)
 			{
-				skin = (ISkin*)skinMod->GetInterface(I_SKIN);
-
-				if (skin)
+				sampler.native = (ISkin*)skinMod->GetInterface(I_SKIN);
+				if (sampler.native)
 				{
-					context = skin->GetContextInterface(Node);
+					sampler.nativeCtx = sampler.native->GetContextInterface(Node);
+				}
+			}
+			else
+			{
+				sampler.wwskin = FindWWSkinModifier(Node);
+				if (sampler.wwskin)
+				{
+					sampler.wwdata = FindWWSkinData(Node, sampler.wwskin);
 				}
 			}
 
@@ -7527,12 +7675,9 @@ namespace W3D::MaxTools
 
 			if ((Header.Attributes & W3D_MESH_FLAG_GEOMETRY_TYPE_MASK) == W3D_MESH_FLAG_GEOMETRY_TYPE_SKIN)
 			{
-				if (Hierarchy)
+				if (Hierarchy && sampler.IsValid())
 				{
-					if (skin && context)
-					{
-						hasskin = true;
-					}
+					hasskin = true;
 				}
 			}
 
@@ -7745,16 +7890,16 @@ namespace W3D::MaxTools
 						float influenceWeights[8];
 						int influenceBones[8];
 						int influenceCount = 0;
-						const int assignedBones = context->GetNumAssignedBones(id);
+						const int assignedBones = sampler.GetNumAssignedBones(id);
 						for (int k = 0; k < assignedBones && influenceCount < 8; ++k)
 						{
-							const float weight = context->GetBoneWeight(id, k);
+							const float weight = sampler.GetBoneWeight(id, k);
 							if (weight <= 0.0f)
 							{
 								continue;
 							}
 
-							INode* bone = skin->GetBone(context->GetAssignedBone(id, k));
+							INode* bone = sampler.GetAssignedBone(id, k);
 							if (!bone)
 							{
 								continue;
@@ -9146,11 +9291,19 @@ namespace W3D::MaxTools
 			}
 #endif
 
-			if (obj->ConvertToType(Time, triObjectClassID) != nullptr)
+			if (obj->CanConvertToType(triObjectClassID))
 			{
-				Mesh = ((TriObject*)obj->ConvertToType(Time, triObjectClassID))->mesh;
-				ValidMesh = true;
-				Initialize();
+				TriObject* tri = (TriObject*)obj->ConvertToType(Time, triObjectClassID);
+				if (tri != nullptr)
+				{
+					Mesh = tri->mesh;
+					ValidMesh = true;
+					Initialize();
+					if (tri != obj)
+					{
+						tri->DeleteThis();
+					}
+				}
 			}
 		}
 
@@ -9347,6 +9500,10 @@ namespace W3D::MaxTools
 			Object* o = node->EvalWorldState(time).obj;
 			TriObject* tri = (TriObject*)o->ConvertToType(time, triObjectClassID);
 			Mesh m(tri->GetMesh());
+			if (tri != o)
+			{
+				tri->DeleteThis();
+			}
 			DWORD color = node->GetWireColor();
 
 			if (!m.getNumVerts())
@@ -9370,15 +9527,14 @@ namespace W3D::MaxTools
 
 #ifndef W3X
 			char newname[128];
-			memset(newname, 0, 128);
-
 			if (containername && containername[0])
 			{
-				strcat(newname, containername);
-				strcat(newname, ".");
+				_snprintf_s(newname, _TRUNCATE, "%s.%s", containername, name);
 			}
-
-			strcat(newname, name);
+			else
+			{
+				_snprintf_s(newname, _TRUNCATE, "%s", name);
+			}
 			strncpy(Box.Name, newname, W3D_NAME_LEN * 2);
 #else
 			strncpy(Box.Name, name, W3D_NAME_LEN * 2);
@@ -9523,9 +9679,17 @@ namespace W3D::MaxTools
 		{
 			Object* o = node->EvalWorldState(Time).obj;
 
-			if (o->ConvertToType(Time, triObjectClassID))
+			if (o->CanConvertToType(triObjectClassID))
 			{
-				ValidMesh = true;
+				TriObject* tri = (TriObject*)o->ConvertToType(Time, triObjectClassID);
+				if (tri != nullptr)
+				{
+					ValidMesh = true;
+					if (tri != o)
+					{
+						tri->DeleteThis();
+					}
+				}
 			}
 		}
 

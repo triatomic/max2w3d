@@ -3,6 +3,7 @@
 #define W3D_MAX_TOOLS_INCLUDE_W3D_MISC_UTILITIES_DLG_H
 
 #include <max.h>
+#include <functional>
 
 namespace W3D::MaxTools
 {
@@ -29,6 +30,7 @@ namespace W3D::MaxTools
 		void SetSelectionOnExportFlags(W3DExportFlags flags);
 		void SetSelectionOnCollisionFlags(W3DCollisionFlags flags);
 		void SelectAlphaObjects();
+		void SelectByPredicate(const std::function<bool(INode&)>& predicate);
 		void DoNodeNameAssignment();
 		void DoMaterialNameAssignment();
 		void DoExtensionNameAssignment();

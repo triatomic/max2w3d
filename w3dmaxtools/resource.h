@@ -266,15 +266,40 @@
 #define IDC_SCREEN_SPIN                 1149
 #define IDC_SCREEN_LABEL                1150
 #define IDC_MIKKTSPACE                  1151
+#define IDC_SELECT_MAX_BONES            1152
+#define IDC_RENEGADE_HACK               1153
 #define IDC_LOG                         1198
 
+// WWSkin Phase 6 — modifier-panel rollouts (the WSM Object's Skeleton dialog
+// and the Binding Modifier's Bone Influence dialog).
+#define IDD_WWSKIN_SKELETON             168
+#define IDD_WWSKIN_BONE_INFLUENCE       169
+
+#define IDS_WWSKIN_SKELETON             250
+#define IDS_WWSKIN_BONE_INFLUENCE       251
+
+#define IDC_WWSKIN_BONE_LIST            1200
+#define IDC_WWSKIN_ADD_BONES            1201
+#define IDC_WWSKIN_REMOVE_BONES         1202
+#define IDC_WWSKIN_PICK_BY_NAME         1203
+#define IDC_WWSKIN_BASE_POSE_EDIT       1204
+#define IDC_WWSKIN_BASE_POSE_SPIN       1205
+#define IDC_WWSKIN_LINK                 1206
+#define IDC_WWSKIN_LINK_BY_NAME         1207
+#define IDC_WWSKIN_AUTO_LINK            1208
+#define IDC_WWSKIN_UNLINK               1209
+#define IDC_WWSKIN_CLASSIC_MODE         1210
+
+#define IDD_W3D_UTIL_SETTINGS_FLOATER   170
+#define IDC_CREATE_SETTINGS_FLOATER     1211
+
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        170
+#define _APS_NEXT_RESOURCE_VALUE        171
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1151
+#define _APS_NEXT_CONTROL_VALUE         1212
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

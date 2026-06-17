@@ -76,6 +76,13 @@ namespace W3D::MaxTools
 		float MaxAdaptiveDeltaError = 0.001f;
 #endif
 		bool MikkTSpace = false;
+#ifndef W3X
+		// "Renegade Hack": when true the exporter keeps every authored material
+		// pass (including textureless ones), matching the original Westwood
+		// exporter. When false (default) empty trailing passes are skipped.
+		// Kept last in the struct so older saved layouts remain a clean prefix.
+		bool RenegadePassHack = false;
+#endif
 	};
 
 	class W3DExport
