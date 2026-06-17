@@ -722,6 +722,10 @@ namespace W3D::MaxTools
 #ifndef W3X
 	std::unordered_map<Object*, StringClass> ObjectMap;
 	bool MeshDeduplication = false;
+	// Mirror of W3DExportSettings::RenegadePassHack for the duration of an export.
+	// true => keep every authored material pass (original Westwood behaviour);
+	// false (default) => skip empty trailing passes.
+	bool RenegadePassHack = false;
 #endif
 
 	class HierarchySave
@@ -928,14 +932,19 @@ namespace W3D::MaxTools
 				((W3DExportSettings*)chunk->data)->AnimFramesEnd = Int->GetAnimRange().End() / GetTicksPerFrame();
 			}
 
-			if (chunk->length == sizeof(OldW3DExportSettings))
+			// Grow any older, smaller settings layout up to the current struct,
+			// preserving the saved prefix and default-initialising newly-added
+			// trailing fields. This covers OldW3DExportSettings as well as later
+			// additions (e.g. RenegadePassHack) without a fixed per-version check.
+			if (chunk->length < sizeof(W3DExportSettings))
 			{
-				OldW3DExportSettings* data = (OldW3DExportSettings*)chunk->data;
+				void* olddata = chunk->data;
+				size_t oldlen = chunk->length;
 				chunk->length = sizeof(W3DExportSettings);
 				void* alloc = MAX_malloc(chunk->length);
 				chunk->data = new(alloc) W3DExportSettings;
-				memcpy(chunk->data, data, sizeof(OldW3DExportSettings));
-				MAX_free(data);
+				memcpy(chunk->data, olddata, oldlen);
+				MAX_free(olddata);
 			}
 
 			W3DExportSettings* settings = (W3DExportSettings*)chunk->data;
@@ -1021,6 +1030,7 @@ namespace W3D::MaxTools
 				{
 #ifndef W3X
 					MeshDeduplication = m_Settings.MeshDeduplication;
+					RenegadePassHack = m_Settings.RenegadePassHack;
 					ObjectMap.clear();
 #endif
 					LogDataDialogClass::CreateLogDialog(nullptr);
@@ -3250,6 +3260,10 @@ namespace W3D::MaxTools
 				// Otherwise an artist who bumps PassCount without authoring stage 1 would emit
 				// an opaque "Texturing Disable, blend One/Zero" pass that overdraws pass 0
 				// and hides the textured (e.g. AlphaTest) result in-engine.
+				//
+				// In the .w3d build this skip is opt-out: ticking "Renegade Hack" in the
+				// export dialog keeps every authored pass, matching the original Westwood
+				// exporter's literal multi-pass output. The .w3x build always skips.
 				int outPass = 0;
 				for (int i = 0; i < mtl->NumActivePasses(); i++)
 				{
@@ -3263,7 +3277,14 @@ namespace W3D::MaxTools
 						mtl->GetSubTexmap(2 * i + 1) != nullptr;
 					if (!stage0Live && !stage1Live)
 					{
+#ifdef W3X
 						continue;
+#else
+						if (!RenegadePassHack)
+						{
+							continue;
+						}
+#endif
 					}
 
 					W3dShaderStruct shader;

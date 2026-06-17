@@ -267,6 +267,7 @@
 #define IDC_SCREEN_LABEL                1150
 #define IDC_MIKKTSPACE                  1151
 #define IDC_SELECT_MAX_BONES            1152
+#define IDC_RENEGADE_HACK               1153
 #define IDC_LOG                         1198
 
 // WWSkin Phase 6 — modifier-panel rollouts (the WSM Object's Skeleton dialog
